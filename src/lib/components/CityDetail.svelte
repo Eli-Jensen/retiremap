@@ -7,7 +7,7 @@
 </script>
 
 {#if city && value}
-  <div class="pointer-events-auto w-72 max-w-[calc(100vw-2rem)] space-y-2 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur">
+  <div class="pointer-events-auto ml-auto w-full space-y-2 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur sm:w-72">
     <div class="flex items-start justify-between gap-2">
       <div>
         <h2 class="font-bold leading-tight text-slate-900">{flagEmoji(city.iso2)} {cityLabel(city)}</h2>

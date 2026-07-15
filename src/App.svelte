@@ -11,7 +11,7 @@
   <div class="pointer-events-none absolute left-4 top-4 z-10">
     <ControlPanel />
   </div>
-  <div class="pointer-events-none absolute right-4 top-4 z-10">
+  <div class="pointer-events-none absolute inset-x-4 bottom-28 z-10 sm:inset-x-auto sm:bottom-auto sm:right-4 sm:top-4">
     <CityDetail />
   </div>
   <div class="pointer-events-none absolute bottom-8 left-4 z-10">
