@@ -1,0 +1,9 @@
+{
+  "edition": "Numbeo Cost of Living Index (current)",
+  "snapshotDate": "2026-07-15",
+  "cityCount": 554,
+  "usRefIndex": {
+    "col": 79.68,
+    "colRent": 68.47
+  }
+}

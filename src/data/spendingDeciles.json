@@ -1,0 +1,46 @@
+{
+  "source": "BLS Consumer Expenditure Survey Table 1110 (2024), mean annual expenditures by income decile, via FRED CXUTOTALEXPLB1502M-1511M",
+  "year": 2024,
+  "anchors": [
+    {
+      "p": 5,
+      "annual": 31660
+    },
+    {
+      "p": 15,
+      "annual": 38473
+    },
+    {
+      "p": 25,
+      "annual": 46340
+    },
+    {
+      "p": 35,
+      "annual": 53778
+    },
+    {
+      "p": 45,
+      "annual": 62880
+    },
+    {
+      "p": 55,
+      "annual": 70913
+    },
+    {
+      "p": 65,
+      "annual": 81716
+    },
+    {
+      "p": 75,
+      "annual": 98158
+    },
+    {
+      "p": 85,
+      "annual": 121317
+    },
+    {
+      "p": 95,
+      "annual": 179513
+    }
+  ]
+}
