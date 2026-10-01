@@ -30,13 +30,12 @@
   // drags push at most one sync per frame.
   let rafId = 0;
   $effect(() => {
-    const values = app.cityValues;
-    const home = app.homeCityId;
+    const results = app.results;
     const selected = app.selectedCityId;
     if (!map || !layerReady) return;
     const m = map;
     cancelAnimationFrame(rafId);
-    rafId = requestAnimationFrame(() => syncFeatureStates(m, cities, values, home, selected));
+    rafId = requestAnimationFrame(() => syncFeatureStates(m, cities, results, selected));
     return () => cancelAnimationFrame(rafId);
   });
 </script>

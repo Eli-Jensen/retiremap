@@ -133,3 +133,54 @@ function parseHtmlTable(html: string): string[][] {
   }
   return out;
 }
+
+// --- Quality of Life rankings table (same manual download, different page) ---
+
+export type NumbeoQolRow = {
+  rawName: string;
+  index: number;
+  safety: number;
+  healthCare: number;
+  pollution: number;
+  climate?: number;
+};
+
+const QOL_HEADERS = {
+  index: 'Quality of Life Index',
+  safety: 'Safety Index',
+  healthCare: 'Health Care Index',
+  pollution: 'Pollution Index',
+  climate: 'Climate Index',
+} as const;
+
+/** Keyed by the exact Numbeo raw city string, which matches the cost table. */
+export function parseNumbeoQol(text: string): Map<string, NumbeoQolRow> {
+  const table = parseCsv(text);
+  const headers = table[0].map((h) => h.trim());
+  const cityI = headers.indexOf('City');
+  const idx = Object.fromEntries(
+    Object.entries(QOL_HEADERS).map(([k, h]) => {
+      const i = headers.indexOf(h);
+      if (i === -1 && k !== 'climate') throw new Error(`QoL table missing column "${h}"`);
+      return [k, i];
+    }),
+  ) as Record<keyof typeof QOL_HEADERS, number>;
+  const out = new Map<string, NumbeoQolRow>();
+  for (const cells of table.slice(1)) {
+    const rawName = cells[cityI].trim();
+    const num = (i: number) => (i === -1 ? NaN : Number.parseFloat(cells[i]));
+    const index = num(idx.index);
+    // Numbeo prints 0.0 when too few sub-indexes exist to score a city.
+    if (!(index > 0)) continue;
+    const climate = num(idx.climate);
+    out.set(rawName, {
+      rawName,
+      index,
+      safety: num(idx.safety),
+      healthCare: num(idx.healthCare),
+      pollution: num(idx.pollution),
+      ...(Number.isFinite(climate) && climate > 0 ? { climate } : {}),
+    });
+  }
+  return out;
+}

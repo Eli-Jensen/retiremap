@@ -57,6 +57,17 @@ export function parseCountryInfo(text: string): Map<string, string> {
   return nameToIso;
 }
 
+/** ISO2 → GeoNames continent code (AF AS EU NA OC SA AN). */
+export function parseContinents(text: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const line of text.split('\n')) {
+    if (!line.trim() || line.startsWith('#')) continue;
+    const f = line.split('\t');
+    out.set(f[0], f[8]);
+  }
+  return out;
+}
+
 export function resolveCountry(numbeoCountry: string, nameToIso: Map<string, string>): string | null {
   for (const variant of nameVariants(numbeoCountry)) {
     const aliased = COUNTRY_ALIASES[variant] ?? variant;

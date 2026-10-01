@@ -1,9 +1,17 @@
 {
   "edition": "Numbeo Cost of Living Index (current)",
-  "snapshotDate": "2026-07-15",
-  "cityCount": 554,
+  "snapshotDate": "2026-10-01",
+  "cityCount": 555,
   "usRefIndex": {
-    "col": 79.68,
-    "colRent": 68.47
+    "col": 79.53,
+    "colRent": 67.31
+  },
+  "salaryAnchor": {
+    "date": "2026-10-01",
+    "nycNet": 5275.33,
+    "calibration": 0.9754,
+    "meanAbsError": 0.0087,
+    "basicsCalibration": 0.9896,
+    "basicsMeanAbsError": 0.0488
   }
 }

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { requiredMonthly, portfolioNeeded, withdrawalMonthly, equivAnnualUS, monthlyFromEquivAnnualUS } from './col.ts';
-import { tRatio } from './color.ts';
 import { buildCurve, P_MIN, P_MAX } from './percentile.ts';
 import deciles from '../../data/spendingDeciles.json';
 
@@ -22,16 +21,6 @@ describe('col math', () => {
     const annual = equivAnnualUS(4000, 68.47, 68.47);
     expect(annual).toBe(48000); // at US-average prices, equivalence is identity
     expect(monthlyFromEquivAnnualUS(annual, 40, 68.47)).toBeCloseTo(4000 * (40 / 68.47), 10);
-  });
-});
-
-describe('tRatio', () => {
-  it('is 0 at parity, symmetric in log space, clamped at 2x', () => {
-    expect(tRatio(80, 80)).toBe(0);
-    expect(tRatio(40, 80)).toBe(-1);
-    expect(tRatio(160, 80)).toBe(1);
-    expect(tRatio(400, 80)).toBe(1);
-    expect(tRatio(60, 80)).toBeCloseTo(-tRatio(80 * (80 / 60), 80), 10);
   });
 });
 

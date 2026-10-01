@@ -1,0 +1,145 @@
+<script lang="ts">
+  import { app, meta, defaults, fmtPct, BRIDGE_RATE } from '../state.svelte.ts';
+  import { TIERS } from '../math/tiers.ts';
+  import { MIN_HORIZON, MAX_HORIZON } from '../math/swr.ts';
+
+  type Src = { label: string; url: string };
+  const sources = defaults.sources as Record<string, Src>;
+  const rows: { input: string; value: string; note: string; src: string[] }[] = [
+    { input: 'Invested savings', value: 'by age', note: defaults.portfolioByAge.note, src: ['scf'] },
+    { input: 'Adding per year', value: `$${defaults.annualSavings.value.toLocaleString()}`, note: defaults.annualSavings.note, src: defaults.annualSavings.sources },
+    { input: 'Social Security', value: `$${defaults.socialSecurity.single.toLocaleString()} / $${defaults.socialSecurity.couple.toLocaleString()} from ${defaults.socialSecurity.startAge}`, note: defaults.socialSecurity.note, src: ['ssa'] },
+    { input: 'Plan to age', value: String(defaults.planToAge.value), note: defaults.planToAge.note, src: ['ssaLife'] },
+    { input: 'Tax on withdrawals', value: fmtPct(defaults.taxRate.value, 0), note: defaults.taxRate.note, src: ['irs'] },
+    { input: 'Health, abroad', value: `$${defaults.health.abroad.under65} / $${defaults.health.abroad.over65}`, note: defaults.health.abroad.note, src: ['ici'] },
+    { input: 'Health, US', value: `$${defaults.health.us.under65} / $${defaults.health.us.over65}`, note: defaults.health.us.note, src: defaults.health.us.sources },
+  ];
+  let dialog = $state<HTMLDialogElement>();
+
+  $effect(() => {
+    if (app.methodsOpen) dialog?.showModal();
+    else dialog?.close();
+  });
+</script>
+
+<dialog
+  bind:this={dialog}
+  onclose={() => (app.methodsOpen = false)}
+  class="m-auto max-h-[90vh] w-[min(46rem,calc(100vw-2rem))] rounded-xl border border-slate-200 p-0 text-sm leading-relaxed text-slate-700 shadow-2xl backdrop:bg-slate-900/40"
+>
+  <div class="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-3">
+    <h2 class="font-bold text-slate-900">How this works</h2>
+    <button class="text-slate-400 hover:text-slate-700" aria-label="Close" onclick={() => (app.methodsOpen = false)}>✕</button>
+  </div>
+  <div class="space-y-5 px-5 py-4">
+    <section class="space-y-2">
+      <h3 class="font-semibold text-slate-900">Lifestyle tiers are relative to locals</h3>
+      <p>
+        Each tier compares what you'd spend each month (excluding health insurance) with what an average local takes home —
+        or, where pay doesn't cover it, with what one person typically spends there before rent. Couples count as 1.5
+        adults (the OECD equivalence scale).
+      </p>
+      <table class="w-full text-xs">
+        <tbody class="divide-y divide-slate-100">
+          {#each TIERS as t, i (t.id)}
+            <tr>
+              <td class="py-1 pr-3 font-medium text-slate-900">{t.label}</td>
+              <td class="py-1 pr-3 tabular-nums">{i === 0 ? `< ${TIERS[1].min}×` : i === TIERS.length - 1 ? `≥ ${t.min}×` : `${t.min}–${TIERS[i + 1].min}×`}</td>
+              <td class="py-1 text-slate-500">{t.blurb}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+      <p class="text-xs text-slate-500">
+        The {TIERS[1].min}× floor is the median minimum-to-average wage ratio across 33 OECD countries in 2024
+        (<a class="text-blue-600 underline" href={sources.oecdMinWage.url} target="_blank" rel="noreferrer">OECD</a>). The steps above it
+        double, which is a judgment call.
+      </p>
+      <p>
+        Local salaries are Numbeo's average monthly net salary. Numbeo defines purchasing power as salary divided by the
+        cost of a cost-of-living-plus-rent basket, relative to New York
+        (<a class="text-blue-600 underline" href={sources.numbeoMethod.url} target="_blank" rel="noreferrer">methodology</a>),
+        so salary = NYC salary × purchasing power × COL+rent index. Anchored to New York's ${meta.salaryAnchor.nycNet.toLocaleString()}
+        and calibrated on 11 hand-checked cities, it matches Numbeo's published salaries within {fmtPct(meta.salaryAnchor.meanAbsError)}
+        on average.
+      </p>
+    </section>
+
+    <section class="space-y-2">
+      <h3 class="font-semibold text-slate-900">How much you need</h3>
+      <p>
+        Everything is in today's dollars. The savings you need to retire at age <i>A</i> have two parts:
+      </p>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>
+          <b>The long-run gap</b> (spending + health insurance − Social Security − other income, grossed up for tax), divided
+          by a safe withdrawal rate for a retirement lasting from <i>A</i> to your plan-to age.
+        </li>
+        <li>
+          <b>A bridge</b> for the years before your income starts and before Medicare-age health prices, priced like a bond
+          ladder earning the historical real return of 10-year Treasuries ({fmtPct(BRIDGE_RATE)}).
+        </li>
+      </ul>
+      <p>
+        <b>Withdrawal rate.</b> By default it's the highest rate that ran out of money in at most
+        {fmtPct(app.maxFailure, 0)} of US retirements of the same length since 1871, using monthly stock (Shiller) and
+        10-year Treasury (FRED) returns. At {app.stockPct}% stocks it falls from {fmtPct(app.swrTable.rate(30), 2)} for a 30-year retirement to {fmtPct(app.swrTable.rate(50), 2)} for 50 years.
+        Past ~57 years the raw number ticks back up because the worst 1960s–70s starts drop out of the data, so longer
+        retirements keep the lowest rate of any shorter one. Rates are tabulated for
+        {MIN_HORIZON}–{MAX_HORIZON}-year retirements, using the same engine as a replication of the 1998 Trinity study.
+      </p>
+      <p>
+        <b>When.</b> Your savings grow at the historical real return of your stock/bond mix
+        ({fmtPct(app.historicalReturn)} at {app.stockPct}% stocks), plus what you add each year, until they cover what
+        you'd need to retire that year.
+      </p>
+    </section>
+
+    <section class="space-y-2">
+      <h3 class="font-semibold text-slate-900">Defaults and where they come from</h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <tbody class="divide-y divide-slate-100 align-top">
+            {#each rows as row (row.input)}
+              <tr>
+                <td class="py-1.5 pr-3 font-medium text-slate-900">{row.input}</td>
+                <td class="whitespace-nowrap py-1.5 pr-3 tabular-nums">{row.value}</td>
+                <td class="py-1.5 text-slate-600">
+                  {row.note}
+                  {#each row.src as k (k)}
+                    <a class="ml-1 text-blue-600 underline" href={sources[k].url} target="_blank" rel="noreferrer">[{sources[k].label}]</a>
+                  {/each}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="space-y-2">
+      <h3 class="font-semibold text-slate-900">Not modeled</h3>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>Visas and residency rules — many countries require a minimum income or deposit.</li>
+        <li>Exchange-rate swings. Numbeo prices are converted to dollars at the snapshot date.</li>
+        <li>US citizens owe US tax on withdrawals wherever they live; local taxes may add to it.</li>
+        <li>Numbeo data is crowd-sourced and skews toward expat-style spending in some cities.</li>
+      </ul>
+    </section>
+
+    <section class="space-y-1 text-xs text-slate-500">
+      <h3 class="font-semibold text-slate-900">Data</h3>
+      <p>
+        Cost of living and quality of life:
+        <a class="text-blue-600 underline" href="https://www.numbeo.com/cost-of-living/" target="_blank" rel="noreferrer">Numbeo</a>
+        snapshot {meta.snapshotDate}, {meta.cityCount} cities. Coordinates:
+        <a class="text-blue-600 underline" href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a> (CC BY 4.0).
+        Market history: <a class="text-blue-600 underline" href={sources.shiller.url} target="_blank" rel="noreferrer">Shiller</a>,
+        <a class="text-blue-600 underline" href={sources.fredGs10.url} target="_blank" rel="noreferrer">FRED GS10</a>. Map:
+        <a class="text-blue-600 underline" href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a>, © OpenMapTiles,
+        © OpenStreetMap contributors.
+      </p>
+      <p>Not financial advice. Everything runs in your browser; nothing you type leaves it.</p>
+    </section>
+  </div>
+</dialog>

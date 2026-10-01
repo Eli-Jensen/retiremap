@@ -1,0 +1,29 @@
+{
+  "_comment": "Numbeo 'Average Monthly Net Salary (After Tax)' read by hand (USD display) from city pages on the snapshot date. NYC is the anchor; the others calibrate it: salary_c = nycNet x k x PP_c/100 x colRent_c/100, k = median(published / uncalibrated). Numbeo's methodology page defines Local Purchasing Power against the COL-plus-rent basket.",
+  "date": "2026-10-01",
+  "nycNet": 5275.33,
+  "validation": {
+    "Lisbon, Portugal": 1572.37,
+    "Bangkok, Thailand": 613.56,
+    "Mexico City, Mexico": 990.96,
+    "Medellin, Colombia": 622.54,
+    "Kuala Lumpur, Malaysia": 1500.09,
+    "Zurich, Switzerland": 8060.54,
+    "London, United Kingdom": 4770.09,
+    "Budapest, Hungary": 1648.16,
+    "Tbilisi, Georgia": 695.14,
+    "Chiang Mai, Thailand": 587.14,
+    "Austin, TX, United States": 5032.37
+  },
+  "_comment_basics": "Numbeo 'estimated monthly costs for a single person ... excluding rent', hand-read the same day. basics_c = nycBasics x k x COL_c/100, k = median(published / uncalibrated). Used as a floor under the local salary where pay doesn't cover the basket.",
+  "nycBasics": 1644.7,
+  "basicsValidation": {
+    "Bangkok, Thailand": 699.9,
+    "Lisbon, Portugal": 860.5,
+    "Damascus, Syria": 567.1,
+    "Medellin, Colombia": 792.9,
+    "Mexico City, Mexico": 775.8,
+    "Lagos, Nigeria": 518.9,
+    "Zurich, Switzerland": 1865.2
+  }
+}

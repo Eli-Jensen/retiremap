@@ -6,6 +6,7 @@ export type CityRecord = {
   admin?: string; // state/province hint for disambiguation, e.g. "NY"
   country: string;
   iso2: string;
+  region: Region;
   lat: number;
   lng: number;
   pop?: number;
@@ -15,6 +16,31 @@ export type CityRecord = {
   groceries: number;
   restaurant: number;
   purchasingPower: number;
+  // Average monthly net (after-tax) salary, USD, derived from purchasing
+  // power x COL-plus-rent and calibrated to Numbeo's published figures.
+  salary: number;
+  // Numbeo-estimated monthly costs for one person excluding rent, USD.
+  basics: number;
+  qol?: QualityOfLife; // absent when Numbeo doesn't rate the city
+};
+
+export const REGIONS = [
+  'Europe',
+  'North America',
+  'Latin America',
+  'Asia',
+  'Middle East',
+  'Africa',
+  'Oceania',
+] as const;
+export type Region = (typeof REGIONS)[number];
+
+export type QualityOfLife = {
+  index: number; // Numbeo Quality of Life Index
+  safety: number;
+  healthCare: number;
+  pollution: number; // higher = worse
+  climate?: number;
 };
 
 export type Meta = {
@@ -24,6 +50,14 @@ export type Meta = {
   // Population-weighted mean index over US cities in the dataset; the
   // reference point that places any budget on the US spending-percentile curve.
   usRefIndex: { col: number; colRent: number };
+  salaryAnchor: {
+    date: string;
+    nycNet: number; // Numbeo NYC average monthly net salary, USD
+    calibration: number; // k: median(published / derived) over the validation cities
+    meanAbsError: number; // after calibration, over the validation cities
+    basicsCalibration: number;
+    basicsMeanAbsError: number;
+  };
 };
 
 export type SpendingDeciles = {

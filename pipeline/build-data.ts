@@ -4,9 +4,9 @@
 import { readFileSync, writeFileSync, statSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { CityRecord, Meta } from '../src/lib/types.ts';
-import { parseNumbeo } from './parse-numbeo.ts';
-import { parseGeoNames, parseCountryInfo, resolveCountry, CityMatcher } from './match-cities.ts';
+import type { CityRecord, Meta, Region } from '../src/lib/types.ts';
+import { parseNumbeo, parseNumbeoQol } from './parse-numbeo.ts';
+import { parseGeoNames, parseCountryInfo, parseContinents, resolveCountry, CityMatcher } from './match-cities.ts';
 import type { MatchResult, Override } from './match-cities.ts';
 import { norm } from './normalize.ts';
 import { buildDeciles } from './build-deciles.ts';
@@ -24,9 +24,74 @@ if (!existsSync(numbeoPath)) {
 }
 const numbeoRows = parseNumbeo(readFileSync(numbeoPath, 'utf8'));
 const geoRows = parseGeoNames(readFileSync(raw('cities15000.txt'), 'utf8'));
-const countryToIso = parseCountryInfo(readFileSync(raw('countryInfo.txt'), 'utf8'));
+const countryInfoText = readFileSync(raw('countryInfo.txt'), 'utf8');
+const countryToIso = parseCountryInfo(countryInfoText);
+const continentOf = parseContinents(countryInfoText);
+// GeoNames continents, regrouped the way people shop for a place to retire.
+const MIDDLE_EAST = new Set(['AE', 'BH', 'IL', 'IQ', 'IR', 'JO', 'KW', 'LB', 'OM', 'PS', 'QA', 'SA', 'SY', 'YE']);
+const regionOf = (iso2: string): Region => {
+  if (MIDDLE_EAST.has(iso2)) return 'Middle East';
+  if (iso2 === 'TR' || iso2 === 'CY' || iso2 === 'GE' || iso2 === 'AM' || iso2 === 'AZ') return 'Europe';
+  switch (continentOf.get(iso2)) {
+    case 'EU': return 'Europe';
+    case 'AS': return 'Asia';
+    case 'AF': return 'Africa';
+    case 'OC': return 'Oceania';
+    case 'SA': return 'Latin America';
+    case 'NA': return iso2 === 'US' || iso2 === 'CA' ? 'North America' : 'Latin America';
+    default: throw new Error(`No region for ${iso2}`);
+  }
+};
 const overrides: Record<string, Override> = JSON.parse(readFileSync(join(here, 'overrides.json'), 'utf8'));
 const snapshotDate = statSync(numbeoPath).mtime.toISOString().slice(0, 10);
+const qolPath = raw('numbeo-qol.csv');
+if (!existsSync(qolPath)) {
+  console.error('Missing pipeline/raw/numbeo-qol.csv — save the table from https://www.numbeo.com/quality-of-life/rankings_current.jsp');
+  process.exit(1);
+}
+const qolByName = parseNumbeoQol(readFileSync(qolPath, 'utf8'));
+const anchor: {
+  date: string;
+  nycNet: number;
+  validation: Record<string, number>;
+  nycBasics: number;
+  basicsValidation: Record<string, number>;
+} = JSON.parse(
+  readFileSync(join(here, 'salary-anchor.json'), 'utf8'),
+);
+
+// --- local salary: Numbeo's purchasing power is (salary / COL+rent basket)
+// relative to NYC, so salary_c = nycNet x PP/100 x colRent/100. Calibrate the
+// anchor with the median ratio against hand-read published salaries. ---
+const uncalibrated = (pp: number, colRent: number) => (anchor.nycNet * pp * colRent) / 1e4;
+const rowByName = new Map(numbeoRows.map((r) => [r.rawName, r]));
+const ratios = Object.entries(anchor.validation).map(([name, published]) => {
+  const r = rowByName.get(name);
+  if (!r) throw new Error(`salary-anchor.json validation city "${name}" not in the Numbeo table`);
+  return published / uncalibrated(r.purchasingPower, r.colRent);
+});
+const calibration = median(ratios);
+const salaryOf = (pp: number, colRent: number) => Math.round(calibration * uncalibrated(pp, colRent));
+const salaryErrors = Object.entries(anchor.validation).map(([name, published]) => {
+  const r = rowByName.get(name)!;
+  return { name, published, derived: salaryOf(r.purchasingPower, r.colRent), err: salaryOf(r.purchasingPower, r.colRent) / published - 1 };
+});
+const meanAbsError = salaryErrors.reduce((a, e) => a + Math.abs(e.err), 0) / salaryErrors.length;
+
+// --- one person's non-rent costs: Numbeo's estimator scales with the COL index ---
+const basicsRaw = (col: number) => (anchor.nycBasics * col) / 100;
+const basicsK = median(
+  Object.entries(anchor.basicsValidation).map(([name, published]) => {
+    const r = rowByName.get(name);
+    if (!r) throw new Error(`salary-anchor.json basics city "${name}" not in the Numbeo table`);
+    return published / basicsRaw(r.col);
+  }),
+);
+const basicsOf = (col: number) => Math.round(basicsK * basicsRaw(col));
+const basicsErrors = Object.entries(anchor.basicsValidation).map(
+  ([name, published]) => basicsOf(rowByName.get(name)!.col) / published - 1,
+);
+const basicsMeanAbsError = basicsErrors.reduce((a, e) => a + Math.abs(e), 0) / basicsErrors.length;
 
 // --- match ---
 const matcher = new CityMatcher(geoRows);
@@ -64,6 +129,7 @@ for (const r of results) {
     ...(r.row.adminHint ? { admin: r.row.adminHint } : {}),
     country: r.row.country,
     iso2,
+    region: regionOf(iso2),
     lat: geo?.lat ?? literal!.lat,
     lng: geo?.lng ?? literal!.lng,
     ...(geo?.population ? { pop: geo.population } : {}),
@@ -73,7 +139,19 @@ for (const r of results) {
     groceries: r.row.groceries,
     restaurant: r.row.restaurant,
     purchasingPower: r.row.purchasingPower,
+    salary: salaryOf(r.row.purchasingPower, r.row.colRent),
+    basics: basicsOf(r.row.col),
   };
+  const q = qolByName.get(r.row.rawName);
+  if (q) {
+    record.qol = {
+      index: q.index,
+      safety: q.safety,
+      healthCare: q.healthCare,
+      pollution: q.pollution,
+      ...(q.climate !== undefined ? { climate: q.climate } : {}),
+    };
+  }
   cities.push(record);
 }
 
@@ -101,6 +179,14 @@ const meta: Meta = {
   snapshotDate,
   cityCount: cities.length,
   usRefIndex,
+  salaryAnchor: {
+    date: anchor.date,
+    nycNet: anchor.nycNet,
+    calibration: Math.round(calibration * 1e4) / 1e4,
+    meanAbsError: Math.round(meanAbsError * 1e4) / 1e4,
+    basicsCalibration: Math.round(basicsK * 1e4) / 1e4,
+    basicsMeanAbsError: Math.round(basicsMeanAbsError * 1e4) / 1e4,
+  },
 };
 
 // --- deciles ---
@@ -136,6 +222,16 @@ console.log(`Cities emitted: ${cities.length}`);
 console.log(`US ref index (pop-weighted over ${usCities.length} US cities): col=${usRefIndex.col} colRent=${usRefIndex.colRent}`);
 if (report.unknownCountries.length) console.log(`UNKNOWN COUNTRIES: ${report.unknownCountries.join('; ')}`);
 if (report.unmatched.length) console.log(`UNMATCHED (${report.unmatched.length}): ${report.unmatched.join('; ')}`);
+const byRegion: Record<string, number> = {};
+for (const c of cities) byRegion[c.region] = (byRegion[c.region] ?? 0) + 1;
+console.log(`Regions: ${JSON.stringify(byRegion)}`);
+const qolJoined = cities.filter((c) => c.qol).length;
+console.log(`QoL: ${qolJoined}/${cities.length} cities rated (${qolByName.size} rows in the QoL table)`);
+const qolOrphans = [...qolByName.keys()].filter((n) => !rowByName.has(n));
+if (qolOrphans.length) console.log(`QoL rows with no cost-table city (ignored): ${qolOrphans.join('; ')}`);
+console.log(`Salary calibration k=${calibration.toFixed(4)}, mean |err| ${(meanAbsError * 100).toFixed(1)}% over ${salaryErrors.length} cities:`);
+for (const e of salaryErrors) console.log(`  ${e.name.padEnd(28)} published ${e.published.toFixed(0).padStart(5)}  derived ${String(e.derived).padStart(5)}  ${(e.err * 100).toFixed(1)}%`);
+console.log(`Basics calibration k=${basicsK.toFixed(4)}, mean |err| ${(basicsMeanAbsError * 100).toFixed(1)}%; floor binds in ${cities.filter((c) => c.basics > c.salary).length} cities`);
 console.log(`Fuzzy matches to eyeball: ${report.fuzzy.length} (see pipeline/out/match-report.json)`);
 
 // --- sanity tripwires ---
@@ -147,6 +243,10 @@ for (const c of cities) {
   }
   if (!(Math.abs(c.lat) <= 90 && Math.abs(c.lng) <= 180)) failures.push(`${c.id} bad coords`);
 }
+if (meanAbsError > 0.05) failures.push(`salary derivation mean |err| ${(meanAbsError * 100).toFixed(1)}% > 5%`);
+if (basicsMeanAbsError > 0.1) failures.push(`basics mean |err| ${(basicsMeanAbsError * 100).toFixed(1)}% > 10%`);
+if (qolJoined < 250) failures.push(`only ${qolJoined} cities have QoL (< 250)`);
+for (const c of cities) if (!(c.salary > 50)) failures.push(`${c.id}.salary = ${c.salary}`);
 for (const k of ['col', 'colRent'] as const) {
   if (usRefIndex[k] < 55 || usRefIndex[k] > 90) failures.push(`usRefIndex.${k} = ${usRefIndex[k]} outside [55,90]`);
 }
@@ -155,6 +255,12 @@ if (failures.length) {
   process.exit(1);
 }
 console.log('Sanity checks passed. Wrote src/data/{cities,meta,spendingDeciles}.json');
+
+function median(xs: number[]): number {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;

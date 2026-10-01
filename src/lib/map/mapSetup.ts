@@ -3,8 +3,8 @@
 import maplibregl from 'maplibre-gl';
 import type { FeatureCollection } from 'geojson';
 import type { CityRecord } from '../types.ts';
-import { RAMP } from '../math/color.ts';
-import type { CityValue } from '../state.svelte.ts';
+import { CLASS_COLORS } from '../math/color.ts';
+import type { CityResult } from '../state.svelte.ts';
 
 export const SOURCE_ID = 'cities';
 export const LAYER_ID = 'city-dots';
@@ -46,29 +46,30 @@ export function addCityLayer(map: maplibregl.Map, geojson: FeatureCollection): v
     source: SOURCE_ID,
     paint: {
       'circle-color': [
-        'interpolate',
-        ['linear'],
-        ['coalesce', ['feature-state', 't'], 0],
-        -1, RAMP[0],
-        -0.5, RAMP[1],
-        0, RAMP[2],
-        0.5, RAMP[3],
-        1, RAMP[4],
+        'match',
+        ['coalesce', ['feature-state', 'cls'], 0],
+        1, CLASS_COLORS[1],
+        2, CLASS_COLORS[2],
+        3, CLASS_COLORS[3],
+        4, CLASS_COLORS[4],
+        5, CLASS_COLORS[5],
+        CLASS_COLORS[0],
       ],
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 3.5, 4, 6.5, 8, 11],
-      'circle-opacity': 0.9,
+      'circle-opacity': [
+        'case',
+        ['!', ['boolean', ['feature-state', 'visible'], true]], 0.12,
+        ['==', ['coalesce', ['feature-state', 'cls'], 0], 0], 0.55,
+        0.92,
+      ],
+      // A surface ring keeps overlapping dots separable.
       'circle-stroke-color': [
         'case',
-        ['boolean', ['feature-state', 'home'], false], '#2563eb',
         ['boolean', ['feature-state', 'selected'], false], '#111827',
-        'rgba(30, 41, 59, 0.35)',
+        '#ffffff',
       ],
-      'circle-stroke-width': [
-        'case',
-        ['boolean', ['feature-state', 'home'], false], 3,
-        ['boolean', ['feature-state', 'selected'], false], 2.5,
-        0.6,
-      ],
+      'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2.5, 0.8],
+      'circle-stroke-opacity': ['case', ['boolean', ['feature-state', 'visible'], true], 1, 0.15],
     },
   });
 }
@@ -77,18 +78,14 @@ export function addCityLayer(map: maplibregl.Map, geojson: FeatureCollection): v
 export function syncFeatureStates(
   map: maplibregl.Map,
   cities: CityRecord[],
-  values: Map<string, CityValue>,
-  homeCityId: string | null,
+  results: Map<string, CityResult>,
   selectedCityId: string | null,
 ): void {
   cities.forEach((c, i) => {
+    const r = results.get(c.id);
     map.setFeatureState(
       { source: SOURCE_ID, id: i },
-      {
-        t: values.get(c.id)?.t ?? 0,
-        home: c.id === homeCityId,
-        selected: c.id === selectedCityId,
-      },
+      { cls: r?.cls ?? 0, visible: r?.visible ?? true, selected: c.id === selectedCityId },
     );
   });
 }

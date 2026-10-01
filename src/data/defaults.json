@@ -1,0 +1,76 @@
+{
+  "_comment": "Every default input, with its source. Researched 2026-10-01. Dollar figures are 2026 dollars. The Methods page renders the `sources` list.",
+  "age": 45,
+  "household": "single",
+  "portfolioByAge": {
+    "note": "Median retirement-account balance (IRA/401k/403b/TSP) among households that have one, by age of head. SCF 2022 (latest; 2025 survey not yet released), x1.1417 CPI-U (2022 avg -> Aug 2026).",
+    "source": "scf",
+    "brackets": [
+      { "maxAge": 34, "value": 21000 },
+      { "maxAge": 44, "value": 51000 },
+      { "maxAge": 54, "value": 131000 },
+      { "maxAge": 64, "value": 211000 },
+      { "maxAge": 74, "value": 228000 },
+      { "maxAge": 200, "value": 148000 }
+    ]
+  },
+  "annualSavings": {
+    "value": 10500,
+    "note": "12% of pay (Vanguard average total contribution rate, employee + employer, 12.1%) x $87,460 median household income (Census 2025).",
+    "sources": ["vanguard", "census"]
+  },
+  "socialSecurity": {
+    "single": 24840,
+    "couple": 38496,
+    "startAge": 67,
+    "note": "Average retired-worker benefit $2,070/mo; aged couple both receiving $3,208/mo (SSA 2026 COLA fact sheet). Full retirement age 67 for anyone born 1960 or later.",
+    "source": "ssa"
+  },
+  "otherIncome": { "value": 0, "startAge": 65 },
+  "stockPct": 75,
+  "maxFailure": 0.05,
+  "planToAge": {
+    "value": 95,
+    "note": "From 65, 14% of women and 8% of men reach 95; a 65/65 couple has about a 1-in-5 chance that one of them does (SSA 2023 period life table, which understates future longevity).",
+    "source": "ssaLife"
+  },
+  "taxRate": {
+    "value": 0.1,
+    "note": "Effective tax on traditional-account withdrawals: a 65+ couple with $60k of withdrawals and $40k of Social Security owes 8.5% of withdrawals in federal tax under 2026 law, 10.9% after the senior deduction lapses in 2029 (IRS Rev. Proc. 2025-32). US citizens owe this wherever they live. Roth withdrawals are ~0%.",
+    "source": "irs"
+  },
+  "health": {
+    "abroad": {
+      "under65": 470,
+      "over65": 800,
+      "note": "International private health insurance, worldwide excluding the US, inpatient + outpatient, ~$1k deductible, per person. Broker sample quotes for Sept 2026: $669-$852/mo at 65 and $956-$1,220 at 70 in Portugal; age 60 extrapolated at ~7%/yr. 65+ uses the 65-70 midpoint. No insurer publishes rate tables, so this is the weakest default.",
+      "source": "ici"
+    },
+    "us": {
+      "under65": 1330,
+      "over65": 430,
+      "note": "Under 65: unsubsidized ACA benchmark silver plan at age 60 ($625 at 40 x the CMS default age curve; enhanced subsidies expired after 2025). 65+: Medicare Part B $202.90 + Medigap Plan G ~$190 + Part D $36.",
+      "sources": ["kffAca", "cmsAgeCurve", "cmsPartB", "kffMedigap", "kffPartD"]
+    }
+  },
+  "sources": {
+    "scf": { "label": "Federal Reserve, Survey of Consumer Finances 2022", "url": "https://www.federalreserve.gov/econres/scfindex.htm" },
+    "vanguard": { "label": "Vanguard, How America Saves 2026", "url": "https://workplace.vanguard.com/content/dam/inst/iig-transformation/has/2026/pdf/HowAmericaSaves2026_accessibility.pdf" },
+    "census": { "label": "US Census Bureau, Income in the United States: 2025 (P60-289)", "url": "https://www.census.gov/library/publications/2026/demo/p60-289.html" },
+    "ssa": { "label": "Social Security Administration, 2026 COLA fact sheet", "url": "https://www.ssa.gov/news/en/cola/factsheets/2026.html" },
+    "ssaLife": { "label": "Social Security Administration, 2023 period life table", "url": "https://www.ssa.gov/oact/STATS/table4c6.html" },
+    "irs": { "label": "IRS Rev. Proc. 2025-32 (2026 brackets & deductions)", "url": "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf" },
+    "ici": { "label": "International Citizens Insurance, health plans for retirees abroad (sample quotes, Sept 2026)", "url": "https://www.internationalinsurance.com/retiring-abroad/senior-health-plans/" },
+    "kffAca": { "label": "KFF, average marketplace premiums by metal tier, 2026", "url": "https://www.kff.org/affordable-care-act/state-indicator/average-marketplace-premiums-by-metal-tier/" },
+    "cmsAgeCurve": { "label": "CMS, default federal age-rating curve", "url": "https://www.cms.gov/files/document/statespecificagecurvevariations021317pdf" },
+    "cmsPartB": { "label": "CMS, 2026 Medicare Parts A & B premiums", "url": "https://www.cms.gov/newsroom/fact-sheets/2026-medicare-parts-b-premiums-deductibles" },
+    "kffMedigap": { "label": "KFF, Medigap enrollment and premiums (2023 data, inflated to 2026)", "url": "https://www.kff.org/medicare/key-facts-about-medigap-enrollment-and-premiums-for-medicare-beneficiaries/" },
+    "kffPartD": { "label": "KFF, Medicare Part D premiums in 2026", "url": "https://www.kff.org/medicare/medicare-part-d-enrollment-premiums-and-cost-sharing-in-2026/" },
+    "numbeo": { "label": "Numbeo cost of living & quality of life rankings (snapshot)", "url": "https://www.numbeo.com/cost-of-living/rankings_current.jsp" },
+    "numbeoMethod": { "label": "Numbeo methodology (purchasing power uses the COL + rent basket)", "url": "https://www.numbeo.com/common/motivation_and_methodology.jsp" },
+    "shiller": { "label": "Robert Shiller, US stock market data since 1871", "url": "http://www.econ.yale.edu/~shiller/data.htm" },
+    "fredGs10": { "label": "FRED, 10-year Treasury yield (GS10)", "url": "https://fred.stlouisfed.org/series/GS10" },
+    "oecdMinWage": { "label": "OECD, minimum relative to average wages of full-time workers (2024; median of 33 countries = 43%)", "url": "https://data-explorer.oecd.org/vis?df[ag]=OECD.ELS.SAE&df[id]=DSD_EARNINGS@MIN2AVE&df[ds]=DisseminateFinalDMZ" },
+    "oecdScale": { "label": "OECD equivalence scales", "url": "https://www.oecd.org/content/dam/oecd/en/data/methods/OECD-Note-EquivalenceScales.pdf" }
+  }
+}
