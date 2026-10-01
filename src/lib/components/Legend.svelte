@@ -4,7 +4,7 @@
   import { CLASS_COLORS } from '../math/color.ts';
 
   const items = $derived(
-    app.mode === 'now'
+    app.mode === 'at'
       ? [...TIERS.slice(1).map((t, i) => ({ cls: i + 1, label: t.label })).reverse(), { cls: 0, label: 'Not enough' }]
       : [...WHEN_BUCKETS.map((b) => ({ cls: b.cls, label: b.label })), { cls: 0, label: `Not by ${app.planToAge}` }],
   );

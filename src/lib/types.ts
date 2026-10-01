@@ -6,7 +6,7 @@ export type CityRecord = {
   admin?: string; // state/province hint for disambiguation, e.g. "NY"
   country: string;
   iso2: string;
-  region: Region;
+  places: string[]; // place ids, broad → narrow: continent, sub-region(s), groups, country
   lat: number;
   lng: number;
   pop?: number;
@@ -24,16 +24,10 @@ export type CityRecord = {
   qol?: QualityOfLife; // absent when Numbeo doesn't rate the city
 };
 
-export const REGIONS = [
-  'Europe',
-  'North America',
-  'Latin America',
-  'Asia',
-  'Middle East',
-  'Africa',
-  'Oceania',
-] as const;
-export type Region = (typeof REGIONS)[number];
+export type PlaceKind = 'continent' | 'subregion' | 'group' | 'country';
+
+/** A filterable place (src/data/places.json), from UN M49 plus a few groups. */
+export type Place = { id: string; label: string; kind: PlaceKind; count: number };
 
 export type QualityOfLife = {
   index: number; // Numbeo Quality of Life Index

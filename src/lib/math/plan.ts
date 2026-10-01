@@ -8,7 +8,8 @@
 //  - a bridge covering the extra early-year shortfall (income not started
 //    yet, pre-65 health care), priced like a bond ladder: each year's
 //    shortfall discounted at a real bond return (0 = cash under the mattress).
-// Every portfolio withdrawal is grossed up by a flat tax rate.
+// Every portfolio withdrawal is grossed up by a tax rate — blended across
+// account types by their balances at retirement (pro-rata withdrawals).
 
 export type Income = { annual: number; startAge: number };
 
@@ -44,8 +45,8 @@ function healthAt(h: Health, age: number): number {
 }
 
 /** Portfolio needed to spend `monthly` (+ health) from `retireAge` to the plan-to age. */
-export function need(monthly: number, health: Health, retireAge: number, a: Assumptions): NeedBreakdown {
-  const gross = 1 / (1 - a.taxRate);
+export function need(monthly: number, health: Health, retireAge: number, a: Assumptions, taxRate = a.taxRate): NeedBreakdown {
+  const gross = 1 / (1 - taxRate);
   const horizon = Math.max(1, a.planToAge - retireAge);
   const swr = a.swr(horizon);
 
@@ -80,21 +81,86 @@ export function need(monthly: number, health: Health, retireAge: number, a: Assu
  * need() is continuous and non-decreasing in spend, so bisection is exact
  * to the cent.
  */
-export function affordableMonthly(portfolio: number, health: Health, retireAge: number, a: Assumptions): number {
-  if (need(0, health, retireAge, a).total > portfolio) return 0;
+export function affordableMonthly(
+  portfolio: number,
+  health: Health,
+  retireAge: number,
+  a: Assumptions,
+  taxRate = a.taxRate,
+): number {
+  const total = (m: number) => need(m, health, retireAge, a, taxRate).total;
+  if (total(0) > portfolio) return 0;
   let lo = 0;
   let hi = 1000;
-  while (need(hi, health, retireAge, a).total <= portfolio) {
+  while (total(hi) <= portfolio) {
     lo = hi;
     hi *= 2;
     if (hi > 1e9) return hi;
   }
   for (let i = 0; i < 50 && hi - lo > 0.01; i++) {
     const mid = (lo + hi) / 2;
-    if (need(mid, health, retireAge, a).total <= portfolio) lo = mid;
+    if (total(mid) <= portfolio) lo = mid;
     else hi = mid;
   }
   return lo;
+}
+
+// --- accounts ---
+
+export type Buckets = { cash: number; brokerage: number; traditional: number; roth: number };
+export type BucketKey = keyof Buckets;
+
+export type AccountsPlan = {
+  age: number;
+  buckets: Buckets;
+  annualSavings: number; // real $/yr added at each year end until retirement
+  savingsTo: BucketKey;
+  realReturn: number; // invested accounts
+  cashReturn: number; // checking & savings
+  tax: { traditional: number; brokerage: number }; // effective rates on withdrawals; cash and Roth are 0
+};
+
+/** One row per whole year from now: what you'd have if you retired then. */
+export type ProjectionYear = { age: number; buckets: Buckets; portfolio: number; taxRate: number };
+
+export function total(b: Buckets): number {
+  return b.cash + b.brokerage + b.traditional + b.roth;
+}
+
+/** Effective withdrawal tax when every account is drawn down pro rata. */
+export function blendedTax(b: Buckets, tax: AccountsPlan['tax']): number {
+  const t = total(b);
+  return t > 0 ? (b.traditional * tax.traditional + b.brokerage * tax.brokerage) / t : tax.traditional;
+}
+
+export function project(p: AccountsPlan, years: number): ProjectionYear[] {
+  const out: ProjectionYear[] = [];
+  let b = { ...p.buckets };
+  for (let n = 0; n <= years; n++) {
+    out.push({ age: p.age + n, buckets: b, portfolio: total(b), taxRate: blendedTax(b, p.tax) });
+    const g = 1 + p.realReturn;
+    b = {
+      cash: b.cash * (1 + p.cashReturn),
+      brokerage: b.brokerage * g,
+      traditional: b.traditional * g,
+      roth: b.roth * g,
+    };
+    b[p.savingsTo] += p.annualSavings;
+  }
+  return out;
+}
+
+/**
+ * First whole number of years from now at which the projected savings cover
+ * need(monthly) for a retirement starting then; null if never within the
+ * projection or before the plan-to age.
+ */
+export function yearsToRetireFrom(monthly: number, health: Health, proj: ProjectionYear[], a: Assumptions): number | null {
+  for (let n = 0; n < proj.length && proj[n].age < a.planToAge; n++) {
+    const y = proj[n];
+    if (y.portfolio >= need(monthly, health, y.age, a, y.taxRate).total) return n;
+  }
+  return null;
 }
 
 export type Accumulation = {

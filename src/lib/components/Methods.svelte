@@ -5,14 +5,32 @@
 
   type Src = { label: string; url: string };
   const sources = defaults.sources as Record<string, Src>;
-  const rows: { input: string; value: string; note: string; src: string[] }[] = [
-    { input: 'Invested savings', value: 'by age', note: defaults.portfolioByAge.note, src: ['scf'] },
-    { input: 'Adding per year', value: `$${defaults.annualSavings.value.toLocaleString()}`, note: defaults.annualSavings.note, src: defaults.annualSavings.sources },
+  type Row = { input: string; value: string; note: string; src: string[] };
+  const k = (n: number) => `$${Math.round(n / 1000)}k`;
+  const personaRows = (id: 'fire' | 'typical'): Row[] => {
+    const p = defaults.personas[id];
+    const at = (b: { value: number }[]) => (b.length === 1 ? k(b[0].value) : 'by age');
+    return [
+      { input: 'Who', value: `${p.age}, ${p.household}, retire at ${p.retireAge}`, note: p.notes.who, src: [] },
+      { input: '401(k) / IRA · brokerage', value: `${at(p.retirementByAge)} · ${at(p.brokerageByAge)}`, note: p.notes.invested, src: [] },
+      { input: 'Checking', value: at(p.cashByAge), note: p.notes.cash, src: [] },
+      { input: 'Adding per year', value: k(p.annualSavings), note: p.notes.savings, src: [] },
+      { input: 'Stocks', value: `${p.stockPct}%`, note: p.notes.stocks, src: [] },
+    ];
+  };
+  const shared: Row[] = [
     { input: 'Social Security', value: `$${defaults.socialSecurity.single.toLocaleString()} / $${defaults.socialSecurity.couple.toLocaleString()} from ${defaults.socialSecurity.startAge}`, note: defaults.socialSecurity.note, src: ['ssa'] },
     { input: 'Plan to age', value: String(defaults.planToAge.value), note: defaults.planToAge.note, src: ['ssaLife'] },
-    { input: 'Tax on withdrawals', value: fmtPct(defaults.taxRate.value, 0), note: defaults.taxRate.note, src: ['irs'] },
+    { input: 'Tax on 401(k)/IRA withdrawals', value: fmtPct(defaults.taxRate.value, 0), note: defaults.taxRate.note, src: ['irs'] },
+    { input: 'Tax on brokerage withdrawals', value: fmtPct(defaults.brokerageTax.value, 0), note: defaults.brokerageTax.note, src: ['irs'] },
+    { input: 'Cash growth', value: '0% real', note: defaults.cashReturn.note, src: [] },
     { input: 'Health, abroad', value: `$${defaults.health.abroad.under65} / $${defaults.health.abroad.over65}`, note: defaults.health.abroad.note, src: ['ici'] },
     { input: 'Health, US', value: `$${defaults.health.us.under65} / $${defaults.health.us.over65}`, note: defaults.health.us.note, src: defaults.health.us.sources },
+  ];
+  const tables: { title: string; rows: Row[]; src: string[] }[] = [
+    { title: `Starting point: ${defaults.personas.fire.label} (default)`, rows: personaRows('fire'), src: defaults.personas.fire.sources },
+    { title: `Starting point: ${defaults.personas.typical.label}`, rows: personaRows('typical'), src: defaults.personas.typical.sources },
+    { title: 'Everyone', rows: shared, src: [] },
   ];
   let dialog = $state<HTMLDialogElement>();
 
@@ -89,32 +107,49 @@
         {MIN_HORIZON}–{MAX_HORIZON}-year retirements, using the same engine as a replication of the 1998 Trinity study.
       </p>
       <p>
-        <b>When.</b> Your savings grow at the historical real return of your stock/bond mix
-        ({fmtPct(app.historicalReturn)} at {app.stockPct}% stocks), plus what you add each year, until they cover what
-        you'd need to retire that year.
+        <b>Accounts.</b> Invested accounts grow at the historical real return of your stock/bond mix
+        ({fmtPct(app.historicalReturn)} at {app.stockPct}% stocks); checking and savings just keep up with inflation. What you
+        add each year goes into the account you pick. Once you retire, everything is drawn down pro rata, so the tax on
+        withdrawals is a blend: your 401(k)/IRA rate on that share, your brokerage rate on that share, nothing on Roth and cash.
+      </p>
+      <p>
+        <b>When.</b> For each city and tier, the first year your projected savings cover what you'd need to retire that year.
+        <b>Retire at</b> shows the tier your projected savings buy at the age you choose.
       </p>
     </section>
 
     <section class="space-y-2">
       <h3 class="font-semibold text-slate-900">Defaults and where they come from</h3>
-      <div class="overflow-x-auto">
-        <table class="w-full text-xs">
-          <tbody class="divide-y divide-slate-100 align-top">
-            {#each rows as row (row.input)}
-              <tr>
-                <td class="py-1.5 pr-3 font-medium text-slate-900">{row.input}</td>
-                <td class="whitespace-nowrap py-1.5 pr-3 tabular-nums">{row.value}</td>
-                <td class="py-1.5 text-slate-600">
-                  {row.note}
-                  {#each row.src as k (k)}
-                    <a class="ml-1 text-blue-600 underline" href={sources[k].url} target="_blank" rel="noreferrer">[{sources[k].label}]</a>
-                  {/each}
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+      <p class="text-xs text-slate-500">
+        Pick a starting point under "You"; anything you type overrides it. The FIRE numbers come from the only repeated
+        survey of the FIRE community, a self-selected (mostly male, tech-heavy, high-income) Reddit sample.
+      </p>
+      {#each tables as t (t.title)}
+        <h4 class="pt-1 text-xs font-semibold text-slate-800">
+          {t.title}
+          {#each t.src as key (key)}
+            <a class="ml-1 font-normal text-blue-600 underline" href={sources[key].url} target="_blank" rel="noreferrer">[{sources[key].label}]</a>
+          {/each}
+        </h4>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs">
+            <tbody class="divide-y divide-slate-100 align-top">
+              {#each t.rows as row (row.input)}
+                <tr>
+                  <td class="w-40 py-1.5 pr-3 font-medium text-slate-900">{row.input}</td>
+                  <td class="whitespace-nowrap py-1.5 pr-3 tabular-nums">{row.value}</td>
+                  <td class="py-1.5 text-slate-600">
+                    {row.note}
+                    {#each row.src as key (key)}
+                      <a class="ml-1 text-blue-600 underline" href={sources[key].url} target="_blank" rel="noreferrer">[{sources[key].label}]</a>
+                    {/each}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {/each}
     </section>
 
     <section class="space-y-2">
@@ -124,6 +159,10 @@
         <li>Exchange-rate swings. Numbeo prices are converted to dollars at the snapshot date.</li>
         <li>US citizens owe US tax on withdrawals wherever they live; local taxes may add to it.</li>
         <li>Numbeo data is crowd-sourced and skews toward expat-style spending in some cities.</li>
+        <li>
+          The 10% penalty on 401(k)/IRA withdrawals before 59½. Early retirees usually avoid it (72(t) payments, a Roth
+          conversion ladder, the rule of 55), so it isn't charged.
+        </li>
       </ul>
     </section>
 
@@ -133,8 +172,9 @@
         Cost of living and quality of life:
         <a class="text-blue-600 underline" href="https://www.numbeo.com/cost-of-living/" target="_blank" rel="noreferrer">Numbeo</a>
         snapshot {meta.snapshotDate}, {meta.cityCount} cities. Coordinates:
-        <a class="text-blue-600 underline" href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a> (CC BY 4.0).
-        Market history: <a class="text-blue-600 underline" href={sources.shiller.url} target="_blank" rel="noreferrer">Shiller</a>,
+        <a class="text-blue-600 underline" href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a> (CC BY 4.0). Regions:
+        <a class="text-blue-600 underline" href={sources.m49.url} target="_blank" rel="noreferrer">UN M49</a>, plus the EU and a
+        conventional Middle East. Market history: <a class="text-blue-600 underline" href={sources.shiller.url} target="_blank" rel="noreferrer">Shiller</a>,
         <a class="text-blue-600 underline" href={sources.fredGs10.url} target="_blank" rel="noreferrer">FRED GS10</a>. Map:
         <a class="text-blue-600 underline" href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a>, © OpenMapTiles,
         © OpenStreetMap contributors.

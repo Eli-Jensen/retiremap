@@ -55,21 +55,22 @@ export function addCityLayer(map: maplibregl.Map, geojson: FeatureCollection): v
         5, CLASS_COLORS[5],
         CLASS_COLORS[0],
       ],
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 3.5, 4, 6.5, 8, 11],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 4, 4, 7, 8, 11],
       'circle-opacity': [
         'case',
-        ['!', ['boolean', ['feature-state', 'visible'], true]], 0.12,
+        ['!', ['boolean', ['feature-state', 'visible'], true]], 0,
         ['==', ['coalesce', ['feature-state', 'cls'], 0], 0], 0.55,
         0.92,
       ],
-      // A surface ring keeps overlapping dots separable.
+      // A dark ring gives the light classes contrast against the basemap and
+      // keeps overlapping dots separable.
       'circle-stroke-color': [
         'case',
         ['boolean', ['feature-state', 'selected'], false], '#111827',
-        '#ffffff',
+        'rgba(17, 24, 39, 0.55)',
       ],
-      'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2.5, 0.8],
-      'circle-stroke-opacity': ['case', ['boolean', ['feature-state', 'visible'], true], 1, 0.15],
+      'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2.5, 0.9],
+      'circle-stroke-opacity': ['case', ['boolean', ['feature-state', 'visible'], true], 1, 0],
     },
   });
 }

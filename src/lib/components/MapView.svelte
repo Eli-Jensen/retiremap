@@ -16,11 +16,14 @@
       addCityLayer(m, buildGeoJSON(cities));
       layerReady = true;
     });
+    // Filtered-out dots are transparent but still in the layer; skip them.
+    const hit = (e: maplibregl.MapLayerMouseEvent) =>
+      e.features?.map((f) => f.properties?.cityId as string).find((id) => app.results.get(id)?.visible);
     m.on('click', LAYER_ID, (e) => {
-      const cityId = e.features?.[0]?.properties?.cityId;
+      const cityId = hit(e);
       if (cityId) app.selectedCityId = cityId === app.selectedCityId ? null : cityId;
     });
-    m.on('mouseenter', LAYER_ID, () => (m.getCanvas().style.cursor = 'pointer'));
+    m.on('mousemove', LAYER_ID, (e) => (m.getCanvas().style.cursor = hit(e) ? 'pointer' : ''));
     m.on('mouseleave', LAYER_ID, () => (m.getCanvas().style.cursor = ''));
     map = m;
     return () => m.remove();

@@ -1,22 +1,24 @@
-import type { CityRecord, Meta, Region, SpendingDeciles } from './types.ts';
-import { REGIONS } from './types.ts';
+import type { CityRecord, Meta, Place, SpendingDeciles } from './types.ts';
 import { buildCurve } from './math/percentile.ts';
 import { equivAnnualUS } from './math/col.ts';
 import { buildMonthly, buildSwrTable, mix, realCagr } from './math/swr.ts';
 import type { Market } from './math/swr.ts';
-import { affordableMonthly, need, yearsToRetire } from './math/plan.ts';
-import type { Assumptions, Health, NeedBreakdown } from './math/plan.ts';
+import { affordableMonthly, need, project, yearsToRetireFrom, MAX_YEARS } from './math/plan.ts';
+import type { Assumptions, BucketKey, Buckets, Health, NeedBreakdown, ProjectionYear } from './math/plan.ts';
 import { TIERS, tierIndex, localRatio, localReference, tierSpend } from './math/tiers.ts';
 import type { Household } from './math/tiers.ts';
 import citiesJson from '../data/cities.json';
 import metaJson from '../data/meta.json';
 import decilesJson from '../data/spendingDeciles.json';
 import marketJson from '../data/market.json';
+import placesJson from '../data/places.json';
 import defaultsJson from '../data/defaults.json';
 
 export const cities = citiesJson as CityRecord[];
 export const meta = metaJson as Meta;
 export const deciles = decilesJson as SpendingDeciles;
+export const places = placesJson as Place[];
+export const placeById = new Map(places.map((p) => [p.id, p]));
 export const defaults = defaultsJson;
 export const curve = buildCurve(deciles.anchors);
 export const cityById = new Map(cities.map((c) => [c.id, c]));
@@ -25,26 +27,28 @@ const monthly = buildMonthly(marketJson as Market);
 /** Historical real return of 10-year Treasuries: what the bridge ladder earns. */
 export const BRIDGE_RATE = realCagr(monthly.bond);
 
-export function defaultPortfolio(age: number): number {
-  return defaults.portfolioByAge.brackets.find((b) => age <= b.maxAge)!.value;
-}
+export type PersonaId = 'fire' | 'typical';
+export type Persona = (typeof defaults.personas)[PersonaId];
+export const PERSONAS: PersonaId[] = ['fire', 'typical'];
+const byAge = (brackets: { maxAge: number; value: number }[], age: number) => brackets.find((b) => age <= b.maxAge)!.value;
 
-export type Mode = 'now' | 'when';
+export type Mode = 'at' | 'when';
 export type Tab = 'map' | 'list';
-export type SortKey = 'best' | 'name' | 'qol' | 'salary';
+
+/** Tier indices that have a "when could I…" answer (everything but "Not enough"). */
+export const TARGET_TIERS = [1, 2, 3, 4, 5] as const;
 
 export type CityResult = {
   health: Health; // household $/mo
-  nowSpend: number; // $/mo the portfolio supports if you retire today (excl. health)
-  nowRatio: number; // nowSpend vs local salary, per adult-equivalent
-  nowTier: number; // index into TIERS
-  targetSpend: number; // $/mo that reaches the target tier here
-  years: number | null; // until you can retire here at the target tier
-  cls: number; // map class: 0 = gray (not enough / never), 1..5 = light → dark
-  visible: boolean; // passes the filters
+  spendAt: number; // $/mo you could spend retiring at the chosen age (excl. health)
+  ratioAt: number; // spendAt vs the local reference, per adult-equivalent
+  tierAt: number; // index into TIERS
+  years: (number | null)[]; // by tier index: years from now until you could retire here at that tier
+  cls: number; // map class: 0 = gray, 1..5 = palette
+  visible: boolean; // passes every filter
 };
 
-/** When-mode buckets: years until retirement → map class (darker = sooner). */
+/** When-mode buckets: years until retirement → map class (higher = sooner). */
 export const WHEN_BUCKETS = [
   { cls: 5, label: 'Now', max: 0 },
   { cls: 4, label: '≤ 5 yrs', max: 5 },
@@ -58,41 +62,97 @@ export function whenClass(years: number | null): number {
   return WHEN_BUCKETS.find((b) => years <= b.max)!.cls;
 }
 
+// --- list columns ---
+
+export type ColumnId = 'at' | `t${1 | 2 | 3 | 4 | 5}` | 'qol' | 'safety' | 'healthCare' | 'pollution' | 'climate' | 'salary' | 'pop';
+export const COLUMNS: { id: ColumnId; label: string; short?: string }[] = [
+  { id: 'at', label: 'At your retirement age' },
+  ...TARGET_TIERS.map((t) => ({ id: `t${t}` as ColumnId, label: TIERS[t].label })),
+  { id: 'qol', label: 'Quality of life', short: 'QoL' },
+  { id: 'safety', label: 'Safety' },
+  { id: 'healthCare', label: 'Health care', short: 'Health' },
+  { id: 'pollution', label: 'Pollution' },
+  { id: 'climate', label: 'Climate' },
+  { id: 'salary', label: 'Local salary', short: 'Salary' },
+  { id: 'pop', label: 'Population', short: 'Pop.' },
+];
+export const DEFAULT_COLUMNS: ColumnId[] = ['at', 't1', 't2', 't3', 't4', 't5', 'qol'];
+export type SortKey = 'best' | 'name' | ColumnId;
+
 class AppState {
-  // --- your situation. null = follow the data-backed default ---
-  age = $state(defaults.age);
-  household = $state<Household>(defaults.household as Household);
-  portfolioInput = $state<number | null>(null);
+  // --- you. null = follow the persona's data-backed default (which may depend on age) ---
+  persona = $state<PersonaId>('fire');
+  ageInput = $state<number | null>(null);
+  householdInput = $state<Household | null>(null);
+  retireAgeInput = $state<number | null>(null);
+
+  // --- accounts ---
+  checkingInput = $state<number | null>(null);
+  savingsAcct = $state(0);
+  brokerageInput = $state<number | null>(null);
+  traditionalInput = $state<number | null>(null);
+  roth = $state(0);
   savingsInput = $state<number | null>(null);
+  savingsToInput = $state<BucketKey | null>(null);
+
+  // --- income ---
   ssInput = $state<number | null>(null);
   ssStartAge = $state(defaults.socialSecurity.startAge);
   otherIncome = $state(defaults.otherIncome.value);
   otherStartAge = $state(defaults.otherIncome.startAge);
 
   // --- assumptions ---
-  stockPct = $state(defaults.stockPct);
+  stockInput = $state<number | null>(null);
   maxFailure = $state(defaults.maxFailure);
   planToAge = $state(defaults.planToAge.value);
-  taxRate = $state(defaults.taxRate.value);
+  taxRate = $state(defaults.taxRate.value); // traditional withdrawals
+  brokerageTax = $state(defaults.brokerageTax.value);
   healthOn = $state(true);
   swrFixed = $state<number | null>(null); // null = historical, by horizon
   returnFixed = $state<number | null>(null); // null = historical CAGR of the mix
 
-  // --- view ---
-  mode = $state<Mode>('now');
-  targetTier = $state(2); // "Like a local"
+  // --- filters ---
+  only = $state<string[]>([]); // place ids; empty = everywhere
+  never = $state<string[]>([]);
   minQol = $state(0);
-  region = $state<Region | 'all'>('all');
+  minSafety = $state(0);
+  minHealthCare = $state(0);
+  maxPollution = $state(100);
+  minClimate = $state(0);
+  minPop = $state(0);
+  minTierAt = $state(0); // only cities where retiring at your age reaches at least this tier
+
+  // --- view ---
+  mode = $state<Mode>('at');
+  targetTier = $state(2); // "Like a local"
   tab = $state<Tab>('map');
+  columns = $state<ColumnId[]>([...DEFAULT_COLUMNS]);
   sort = $state<SortKey>('best');
+  sortDesc = $state(false);
   selectedCityId = $state<string | null>(null);
   methodsOpen = $state(false);
+  sharedPlan = $state(false); // opened from someone's link; not saved until edited
 
   // --- effective inputs ---
-  portfolio = $derived(this.portfolioInput ?? defaultPortfolio(this.age));
-  annualSavings = $derived(this.savingsInput ?? defaults.annualSavings.value);
+  p: Persona = $derived(defaults.personas[this.persona]);
+  age = $derived(this.ageInput ?? this.p.age);
+  household: Household = $derived(this.householdInput ?? (this.p.household as Household));
+  retireAge = $derived(Math.max(this.age, this.retireAgeInput ?? this.p.retireAge));
+  checking = $derived(this.checkingInput ?? byAge(this.p.cashByAge, this.age));
+  traditional = $derived(this.traditionalInput ?? byAge(this.p.retirementByAge, this.age));
+  brokerage = $derived(this.brokerageInput ?? byAge(this.p.brokerageByAge, this.age));
+  annualSavings = $derived(this.savingsInput ?? this.p.annualSavings);
+  savingsTo: BucketKey = $derived(this.savingsToInput ?? (this.p.savingsTo as BucketKey));
+  stockPct = $derived(this.stockInput ?? this.p.stockPct);
   socialSecurity = $derived(this.ssInput ?? defaults.socialSecurity[this.household]);
   persons = $derived(this.household === 'couple' ? 2 : 1);
+  buckets: Buckets = $derived({
+    cash: this.checking + this.savingsAcct,
+    brokerage: this.brokerage,
+    traditional: this.traditional,
+    roth: this.roth,
+  });
+  netWorth = $derived(this.buckets.cash + this.buckets.brokerage + this.buckets.traditional + this.buckets.roth);
 
   swrTable = $derived(buildSwrTable(monthly, this.stockPct / 100, this.maxFailure));
   historicalReturn = $derived(realCagr(mix(monthly.stock, monthly.bond, this.stockPct / 100)));
@@ -113,35 +173,63 @@ class AppState {
     };
   });
 
+  /** What you'd have, and its tax blend, if you retired 0..N years from now. */
+  projection: ProjectionYear[] = $derived(
+    project(
+      {
+        age: this.age,
+        buckets: this.buckets,
+        annualSavings: this.annualSavings,
+        savingsTo: this.savingsTo,
+        realReturn: this.realReturn,
+        cashReturn: defaults.cashReturn.value,
+        tax: { traditional: this.taxRate, brokerage: this.brokerageTax },
+      },
+      Math.max(0, Math.min(MAX_YEARS, this.planToAge - this.age)),
+    ),
+  );
+  atRetirement = $derived(this.projection[Math.min(this.retireAge - this.age, this.projection.length - 1)]);
+
   healthUS: Health = $derived(this.scaleHealth(defaults.health.us));
   healthAbroad: Health = $derived(this.scaleHealth(defaults.health.abroad));
 
   results = $derived.by(() => {
     const a = this.assumptions;
-    const acc = { age: this.age, portfolio: this.portfolio, annualSavings: this.annualSavings, realReturn: this.realReturn };
-    // Spend-now only depends on the health schedule, which is US-or-not.
-    const nowUS = affordableMonthly(this.portfolio, this.healthUS, this.age, a);
-    const nowAbroad = affordableMonthly(this.portfolio, this.healthAbroad, this.age, a);
+    const proj = this.projection;
+    const at = this.atRetirement;
+    // Spend at the retirement age only depends on the health schedule (US or not).
+    const spendUS = affordableMonthly(at.portfolio, this.healthUS, at.age, a, at.taxRate);
+    const spendAbroad = affordableMonthly(at.portfolio, this.healthAbroad, at.age, a, at.taxRate);
+    const only = new Set(this.only);
+    const never = new Set(this.never);
     const out = new Map<string, CityResult>();
     for (const c of cities) {
       const us = c.iso2 === 'US';
       const health = us ? this.healthUS : this.healthAbroad;
-      const nowSpend = us ? nowUS : nowAbroad;
+      const spendAt = us ? spendUS : spendAbroad;
       const ref = localReference(c);
-      const nowRatio = localRatio(nowSpend, ref, this.household);
-      const nowTier = tierIndex(nowRatio);
-      const targetSpend = tierSpend(this.targetTier, ref, this.household);
-      const years = yearsToRetire(targetSpend, health, acc, a);
+      const ratioAt = localRatio(spendAt, ref, this.household);
+      const tierAt = tierIndex(ratioAt);
+      const years: (number | null)[] = [null];
+      for (const t of TARGET_TIERS) years[t] = yearsToRetireFrom(tierSpend(t, ref, this.household), health, proj, a);
+      const q = c.qol;
       const visible =
-        (this.region === 'all' || c.region === this.region) && (this.minQol <= 0 || (c.qol?.index ?? 0) >= this.minQol);
+        (only.size === 0 || c.places.some((p) => only.has(p))) &&
+        !c.places.some((p) => never.has(p)) &&
+        (this.minQol <= 0 || (q?.index ?? 0) >= this.minQol) &&
+        (this.minSafety <= 0 || (q?.safety ?? 0) >= this.minSafety) &&
+        (this.minHealthCare <= 0 || (q?.healthCare ?? 0) >= this.minHealthCare) &&
+        (this.maxPollution >= 100 || (q !== undefined && q.pollution <= this.maxPollution)) &&
+        (this.minClimate <= 0 || (q?.climate ?? 0) >= this.minClimate) &&
+        (this.minPop <= 0 || (c.pop ?? 0) >= this.minPop) &&
+        tierAt >= this.minTierAt;
       out.set(c.id, {
         health,
-        nowSpend,
-        nowRatio,
-        nowTier,
-        targetSpend,
+        spendAt,
+        ratioAt,
+        tierAt,
         years,
-        cls: this.mode === 'now' ? nowTier : whenClass(years),
+        cls: this.mode === 'at' ? tierAt : whenClass(years[this.targetTier]),
         visible,
       });
     }
@@ -158,33 +246,59 @@ class AppState {
       const r = this.results.get(c.id)!;
       if (!r.visible) continue;
       shown++;
-      byTier[r.nowTier]++;
-      if (r.years !== null) {
-        if (soonest === null || r.years < soonest) {
-          soonest = r.years;
+      byTier[r.tierAt]++;
+      const y = r.years[this.targetTier];
+      if (y !== null) {
+        if (soonest === null || y < soonest) {
+          soonest = y;
           soonestCount = 1;
-        } else if (r.years === soonest) soonestCount++;
+        } else if (y === soonest) soonestCount++;
       }
     }
     return { shown, byTier, retirable: shown - byTier[0], soonest, soonestCount };
   });
 
+  filtersActive = $derived(
+    this.only.length +
+      this.never.length +
+      Number(this.minQol > 0) +
+      Number(this.minSafety > 0) +
+      Number(this.minHealthCare > 0) +
+      Number(this.maxPollution < 100) +
+      Number(this.minClimate > 0) +
+      Number(this.minPop > 0) +
+      Number(this.minTierAt > 0),
+  );
+
   selectedCity = $derived(this.selectedCityId ? (cityById.get(this.selectedCityId) ?? null) : null);
 
   /** Full breakdown for the detail card (one city, so recomputing is fine). */
-  breakdown(c: CityRecord): { now: NeedBreakdown; target: NeedBreakdown | null; retireAge: number | null } {
+  breakdown(c: CityRecord): { at: NeedBreakdown; target: NeedBreakdown | null; targetAge: number | null } {
     const r = this.results.get(c.id)!;
-    const retireAge = r.years === null ? null : this.age + r.years;
+    const at = this.atRetirement;
+    const y = r.years[this.targetTier];
+    const target = y === null ? null : this.projection[y];
     return {
-      now: need(r.nowSpend, r.health, this.age, this.assumptions),
-      target: retireAge === null ? null : need(r.targetSpend, r.health, retireAge, this.assumptions),
-      retireAge,
+      at: need(r.spendAt, r.health, at.age, this.assumptions, at.taxRate),
+      target: target ? need(tierSpend(this.targetTier, localReference(c), this.household), r.health, target.age, this.assumptions, target.taxRate) : null,
+      targetAge: target?.age ?? null,
     };
   }
 
   /** Cost-adjusted US spending percentile of a monthly budget in a city. */
   usPercentile(monthlySpend: number, c: CityRecord): number {
     return curve.spendToPercentile(equivAnnualUS(monthlySpend, c.colRent, meta.usRefIndex.colRent));
+  }
+
+  setPlace(id: string, list: 'only' | 'never' | null) {
+    this.only = this.only.filter((p) => p !== id);
+    this.never = this.never.filter((p) => p !== id);
+    if (list === 'only') this.only = [...this.only, id];
+    if (list === 'never') this.never = [...this.never, id];
+  }
+
+  clearFilters() {
+    for (const f of FIELDS) if (FILTER_KEYS.has(f.key)) f.reset();
   }
 
   private scaleHealth(h: { under65: number; over65: number }): Health {
@@ -195,13 +309,24 @@ class AppState {
 
 export const app = new AppState();
 
-// --- URL hash <-> state, so a plan is shareable. Only non-defaults are written;
-// a hash that omits a key puts that field back to its default. ---
+// --- URL hash / saved state <-> app. Only non-defaults are written; a hash
+// that omits a key puts that field back to its default. ---
 
-type Field = { key: string; get: () => unknown; isDefault: () => boolean; set: (raw: string) => void; reset: () => void };
+type Field = { key: string; get: () => string; isDefault: () => boolean; set: (raw: string) => void; reset: () => void };
 
 function field<T>(key: string, get: () => T, assign: (v: T) => void, parse: (raw: string) => T, def: T): Field {
-  return { key, get, isDefault: () => get() === def, set: (raw) => assign(parse(raw)), reset: () => assign(def) };
+  return { key, get: () => String(get()), isDefault: () => get() === def, set: (raw) => assign(parse(raw)), reset: () => assign(def) };
+}
+
+function listField<T extends string>(key: string, get: () => T[], assign: (v: T[]) => void, valid: (s: string) => boolean, def: T[]): Field {
+  const same = (a: T[]) => a.length === def.length && a.every((x, i) => x === def[i]);
+  return {
+    key,
+    get: () => get().join(','),
+    isDefault: () => same(get()),
+    set: (raw) => assign(raw.split(',').filter((s) => s && valid(s)) as T[]),
+    reset: () => assign([...def]),
+  };
 }
 
 const num = (raw: string): number | null => {
@@ -212,31 +337,61 @@ const clamped = (lo: number, hi: number, fallback: number) => (raw: string) => {
   const n = num(raw);
   return n === null ? fallback : Math.max(lo, Math.min(hi, n));
 };
-const nullableNum = (raw: string) => num(raw);
-
+const money = (raw: string) => {
+  const n = num(raw);
+  return n === null ? null : Math.max(0, n);
+};
+const BUCKETS: BucketKey[] = ['cash', 'brokerage', 'traditional', 'roth'];
 const d = defaults;
+
+const nullableAge = (lo: number, hi: number) => (r: string) => {
+  const n = num(r);
+  return n === null ? null : Math.max(lo, Math.min(hi, Math.round(n)));
+};
+
 const FIELDS: Field[] = [
-  field('age', () => app.age, (v) => (app.age = Math.round(v)), clamped(18, 90, d.age), d.age),
-  field('hh', () => app.household, (v) => (app.household = v), (r): Household => (r === 'couple' ? 'couple' : 'single'), d.household as Household),
-  field('nw', () => app.portfolioInput, (v) => (app.portfolioInput = v), nullableNum, null),
-  field('save', () => app.savingsInput, (v) => (app.savingsInput = v), nullableNum, null),
-  field('ss', () => app.ssInput, (v) => (app.ssInput = v), nullableNum, null),
+  field('p', () => app.persona, (v) => (app.persona = v), (r): PersonaId => (r === 'typical' ? 'typical' : 'fire'), 'fire' as PersonaId),
+  field('age', () => app.ageInput, (v) => (app.ageInput = v), nullableAge(18, 90), null),
+  field('hh', () => app.householdInput, (v) => (app.householdInput = v), (r): Household | null => (r === 'couple' || r === 'single' ? r : null), null as Household | null),
+  field('at', () => app.retireAgeInput, (v) => (app.retireAgeInput = v), nullableAge(18, 100), null),
+  field('chk', () => app.checkingInput, (v) => (app.checkingInput = v), money, null),
+  field('sav', () => app.savingsAcct, (v) => (app.savingsAcct = v), (r) => money(r) ?? 0, 0),
+  field('brk', () => app.brokerageInput, (v) => (app.brokerageInput = v), money, null),
+  field('nw', () => app.traditionalInput, (v) => (app.traditionalInput = v), money, null),
+  field('roth', () => app.roth, (v) => (app.roth = v), (r) => money(r) ?? 0, 0),
+  field('save', () => app.savingsInput, (v) => (app.savingsInput = v), money, null),
+  field('into', () => app.savingsToInput, (v) => (app.savingsToInput = v), (r) => ((BUCKETS as string[]).includes(r) ? (r as BucketKey) : null), null as BucketKey | null),
+  field('ss', () => app.ssInput, (v) => (app.ssInput = v), money, null),
   field('ssAge', () => app.ssStartAge, (v) => (app.ssStartAge = v), clamped(50, 75, d.socialSecurity.startAge), d.socialSecurity.startAge),
   field('inc', () => app.otherIncome, (v) => (app.otherIncome = v), clamped(0, 1e7, 0), d.otherIncome.value),
   field('incAge', () => app.otherStartAge, (v) => (app.otherStartAge = v), clamped(18, 100, d.otherIncome.startAge), d.otherIncome.startAge),
-  field('stocks', () => app.stockPct, (v) => (app.stockPct = v), clamped(0, 100, d.stockPct), d.stockPct),
+  field('stocks', () => app.stockInput, (v) => (app.stockInput = v), (r) => { const n = num(r); return n === null ? null : Math.max(0, Math.min(100, n)); }, null),
   field('fail', () => app.maxFailure, (v) => (app.maxFailure = v), clamped(0, 0.5, d.maxFailure), d.maxFailure),
   field('to', () => app.planToAge, (v) => (app.planToAge = v), clamped(70, 110, d.planToAge.value), d.planToAge.value),
   field('tax', () => app.taxRate, (v) => (app.taxRate = v), clamped(0, 0.6, d.taxRate.value), d.taxRate.value),
+  field('btax', () => app.brokerageTax, (v) => (app.brokerageTax = v), clamped(0, 0.4, d.brokerageTax.value), d.brokerageTax.value),
   field('health', () => app.healthOn, (v) => (app.healthOn = v), (r) => r !== 'false' && r !== '0', true),
-  field('swr', () => app.swrFixed, (v) => (app.swrFixed = v), nullableNum, null),
-  field('ret', () => app.returnFixed, (v) => (app.returnFixed = v), nullableNum, null),
-  field('mode', () => app.mode, (v) => (app.mode = v), (r): Mode => (r === 'when' ? 'when' : 'now'), 'now' as Mode),
+  field('swr', () => app.swrFixed, (v) => (app.swrFixed = v), num, null),
+  field('ret', () => app.returnFixed, (v) => (app.returnFixed = v), num, null),
+  // 'now' is the v2.0 name for retiring at your current age.
+  field('mode', () => app.mode, (v) => (app.mode = v), (r): Mode => (r === 'when' ? 'when' : 'at'), 'at' as Mode),
   field('tier', () => app.targetTier, (v) => (app.targetTier = Math.round(v)), clamped(1, TIERS.length - 1, 2), 2),
+  listField('only', () => app.only, (v) => (app.only = v), (s) => placeById.has(s), []),
+  listField('never', () => app.never, (v) => (app.never = v), (s) => placeById.has(s), []),
   field('qol', () => app.minQol, (v) => (app.minQol = v), clamped(0, 250, 0), 0),
-  field('region', () => app.region, (v) => (app.region = v), (r) => ((REGIONS as readonly string[]).includes(r) ? (r as Region) : 'all'), 'all' as Region | 'all'),
+  field('safe', () => app.minSafety, (v) => (app.minSafety = v), clamped(0, 100, 0), 0),
+  field('hc', () => app.minHealthCare, (v) => (app.minHealthCare = v), clamped(0, 100, 0), 0),
+  field('poll', () => app.maxPollution, (v) => (app.maxPollution = v), clamped(0, 100, 100), 100),
+  field('clim', () => app.minClimate, (v) => (app.minClimate = v), clamped(0, 100, 0), 0),
+  field('pop', () => app.minPop, (v) => (app.minPop = v), clamped(0, 1e8, 0), 0),
+  field('mintier', () => app.minTierAt, (v) => (app.minTierAt = Math.round(v)), clamped(0, TIERS.length - 1, 0), 0),
+  listField('cols', () => app.columns, (v) => (app.columns = v), (s) => COLUMNS.some((c) => c.id === s), DEFAULT_COLUMNS),
+  field('sort', () => app.sort, (v) => (app.sort = v), (r): SortKey => (r === 'best' || r === 'name' || COLUMNS.some((c) => c.id === r) ? (r as SortKey) : 'best'), 'best' as SortKey),
+  field('desc', () => app.sortDesc, (v) => (app.sortDesc = v), (r) => r === 'true', false),
   field('city', () => app.selectedCityId, (v) => (app.selectedCityId = v), (r) => (cityById.has(r) ? r : null), null as string | null),
 ];
+
+const FILTER_KEYS = new Set(['only', 'never', 'qol', 'safe', 'hc', 'poll', 'clim', 'pop', 'mintier']);
 
 export function readHash(hash: string): void {
   const params = new URLSearchParams(hash.replace(/^#/, ''));
@@ -249,9 +404,31 @@ export function readHash(hash: string): void {
 
 export function writeHash(): string {
   const params = new URLSearchParams();
-  for (const f of FIELDS) if (!f.isDefault()) params.set(f.key, String(f.get()));
-  const s = params.toString();
+  for (const f of FIELDS) if (!f.isDefault()) params.set(f.key, f.get());
+  // Keep list separators readable in shared links.
+  const s = params.toString().replace(/%2C/g, ',');
   return s ? `#${s}` : '';
+}
+
+// --- remembering your plan between visits (this browser only) ---
+
+const STORAGE_KEY = 'retiremap.plan.v1';
+
+export function loadSaved(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function save(hash: string): void {
+  try {
+    if (hash) localStorage.setItem(STORAGE_KEY, hash);
+    else localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Private mode / storage blocked: the URL still carries the plan.
+  }
 }
 
 // --- formatting ---
@@ -267,9 +444,11 @@ export function flagEmoji(iso2: string): string {
 
 const usd0 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const usdCompact = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumSignificantDigits: 3 });
+const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumSignificantDigits: 3 });
 
 export const fmtUsd = (n: number) => usd0.format(n);
 export const fmtUsdCompact = (n: number) => usdCompact.format(n);
+export const fmtCompact = (n: number) => compact.format(n);
 export const fmtPct = (f: number, digits = 1) => `${(f * 100).toFixed(digits)}%`;
 
 export function ordinal(n: number): string {

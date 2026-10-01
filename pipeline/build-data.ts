@@ -4,9 +4,11 @@
 import { readFileSync, writeFileSync, statSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { CityRecord, Meta, Region } from '../src/lib/types.ts';
+import type { CityRecord, Meta, Place } from '../src/lib/types.ts';
+import { parseM49, placesFor } from './places.ts';
+import type { PlaceDef } from './places.ts';
 import { parseNumbeo, parseNumbeoQol } from './parse-numbeo.ts';
-import { parseGeoNames, parseCountryInfo, parseContinents, resolveCountry, CityMatcher } from './match-cities.ts';
+import { parseGeoNames, parseCountryInfo, resolveCountry, CityMatcher } from './match-cities.ts';
 import type { MatchResult, Override } from './match-cities.ts';
 import { norm } from './normalize.ts';
 import { buildDeciles } from './build-deciles.ts';
@@ -26,22 +28,13 @@ const numbeoRows = parseNumbeo(readFileSync(numbeoPath, 'utf8'));
 const geoRows = parseGeoNames(readFileSync(raw('cities15000.txt'), 'utf8'));
 const countryInfoText = readFileSync(raw('countryInfo.txt'), 'utf8');
 const countryToIso = parseCountryInfo(countryInfoText);
-const continentOf = parseContinents(countryInfoText);
-// GeoNames continents, regrouped the way people shop for a place to retire.
-const MIDDLE_EAST = new Set(['AE', 'BH', 'IL', 'IQ', 'IR', 'JO', 'KW', 'LB', 'OM', 'PS', 'QA', 'SA', 'SY', 'YE']);
-const regionOf = (iso2: string): Region => {
-  if (MIDDLE_EAST.has(iso2)) return 'Middle East';
-  if (iso2 === 'TR' || iso2 === 'CY' || iso2 === 'GE' || iso2 === 'AM' || iso2 === 'AZ') return 'Europe';
-  switch (continentOf.get(iso2)) {
-    case 'EU': return 'Europe';
-    case 'AS': return 'Asia';
-    case 'AF': return 'Africa';
-    case 'OC': return 'Oceania';
-    case 'SA': return 'Latin America';
-    case 'NA': return iso2 === 'US' || iso2 === 'CA' ? 'North America' : 'Latin America';
-    default: throw new Error(`No region for ${iso2}`);
-  }
-};
+const m49Path = raw('m49.csv');
+if (!existsSync(m49Path)) {
+  console.error('Missing pipeline/raw/m49.csv — save the table from https://unstats.un.org/unsd/methodology/m49/overview/');
+  process.exit(1);
+}
+const m49 = parseM49(readFileSync(m49Path, 'utf8'));
+const placeDefs = new Map<string, PlaceDef>();
 const overrides: Record<string, Override> = JSON.parse(readFileSync(join(here, 'overrides.json'), 'utf8'));
 const snapshotDate = statSync(numbeoPath).mtime.toISOString().slice(0, 10);
 const qolPath = raw('numbeo-qol.csv');
@@ -129,7 +122,7 @@ for (const r of results) {
     ...(r.row.adminHint ? { admin: r.row.adminHint } : {}),
     country: r.row.country,
     iso2,
-    region: regionOf(iso2),
+    places: placesFor(iso2, r.row.country, m49, placeDefs),
     lat: geo?.lat ?? literal!.lat,
     lng: geo?.lng ?? literal!.lng,
     ...(geo?.population ? { pop: geo.population } : {}),
@@ -192,6 +185,14 @@ const meta: Meta = {
 // --- deciles ---
 const deciles = buildDeciles(readFileSync(raw('fred_deciles.csv'), 'utf8'), 2024);
 
+// --- places catalog ---
+const placeCount = new Map<string, number>();
+for (const c of cities) for (const p of c.places) placeCount.set(p, (placeCount.get(p) ?? 0) + 1);
+const kindOrder = { continent: 0, subregion: 1, group: 2, country: 3 } as const;
+const places: Place[] = [...placeDefs.values()]
+  .map((d) => ({ ...d, count: placeCount.get(d.id) ?? 0 }))
+  .sort((a, b) => kindOrder[a.kind] - kindOrder[b.kind] || a.label.localeCompare(b.label));
+
 // --- report ---
 const counts: Record<string, number> = {};
 for (const r of results) counts[r.status] = (counts[r.status] ?? 0) + 1;
@@ -214,6 +215,7 @@ mkdirSync(dataDir, { recursive: true });
 writeFileSync(join(outDir, 'match-report.json'), JSON.stringify(report, null, 2));
 writeFileSync(join(dataDir, 'cities.json'), JSON.stringify(cities));
 writeFileSync(join(dataDir, 'meta.json'), JSON.stringify(meta, null, 2));
+writeFileSync(join(dataDir, 'places.json'), JSON.stringify(places));
 writeFileSync(join(dataDir, 'spendingDeciles.json'), JSON.stringify(deciles, null, 2));
 
 console.log(`Numbeo rows: ${numbeoRows.length}`);
@@ -222,9 +224,7 @@ console.log(`Cities emitted: ${cities.length}`);
 console.log(`US ref index (pop-weighted over ${usCities.length} US cities): col=${usRefIndex.col} colRent=${usRefIndex.colRent}`);
 if (report.unknownCountries.length) console.log(`UNKNOWN COUNTRIES: ${report.unknownCountries.join('; ')}`);
 if (report.unmatched.length) console.log(`UNMATCHED (${report.unmatched.length}): ${report.unmatched.join('; ')}`);
-const byRegion: Record<string, number> = {};
-for (const c of cities) byRegion[c.region] = (byRegion[c.region] ?? 0) + 1;
-console.log(`Regions: ${JSON.stringify(byRegion)}`);
+console.log(`Places: ${places.filter((p) => p.kind !== 'country').map((p) => `${p.label} ${p.count}`).join(', ')}`);
 const qolJoined = cities.filter((c) => c.qol).length;
 console.log(`QoL: ${qolJoined}/${cities.length} cities rated (${qolByName.size} rows in the QoL table)`);
 const qolOrphans = [...qolByName.keys()].filter((n) => !rowByName.has(n));

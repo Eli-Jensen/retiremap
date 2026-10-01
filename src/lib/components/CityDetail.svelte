@@ -1,14 +1,16 @@
 <script lang="ts">
-  import { app, flagEmoji, fmtUsd, fmtUsdCompact, fmtPct, fmtPercentile } from '../state.svelte.ts';
+  import { app, placeById, flagEmoji, fmtUsd, fmtUsdCompact, fmtPct, fmtPercentile, TARGET_TIERS } from '../state.svelte.ts';
   import { TIERS, HOUSEHOLD_SCALE, localReference, tierSpend } from '../math/tiers.ts';
   import { CLASS_COLORS } from '../math/color.ts';
 
   const city = $derived(app.selectedCity);
   const r = $derived(city ? app.results.get(city.id) : undefined);
   const b = $derived(city && r ? app.breakdown(city) : undefined);
-  const target = $derived(TIERS[app.targetTier]);
   const ref = $derived(city ? localReference(city) : 0);
-  const localBudget = $derived(ref * HOUSEHOLD_SCALE[app.household]);
+  const at = $derived(app.atRetirement);
+  const when = $derived(app.retireAge === app.age ? 'today' : `at ${app.retireAge}`);
+  const regionLabel = $derived(city ? city.places.slice(1, -1).map((id) => placeById.get(id)?.label).filter(Boolean)[0] : '');
+  const countryId = $derived(city ? city.places[city.places.length - 1] : '');
 </script>
 
 {#if city && r && b}
@@ -20,7 +22,7 @@
     <div class="flex items-start justify-between gap-2">
       <div>
         <h2 class="font-bold leading-tight text-slate-900">{flagEmoji(city.iso2)} {city.name}</h2>
-        <p class="text-[11px] text-slate-500">{city.admin ? `${city.admin}, ` : ''}{city.country} · {city.region}</p>
+        <p class="text-[11px] text-slate-500">{city.admin ? `${city.admin}, ` : ''}{city.country} · {regionLabel}</p>
       </div>
       <button class="-m-1 p-1 text-slate-400 hover:text-slate-700" aria-label="Close" onclick={() => (app.selectedCityId = null)}>✕</button>
     </div>
@@ -28,44 +30,56 @@
     <p class="text-xs text-slate-600">
       Locals earn about <b class="text-slate-900">{fmtUsd(city.salary)}/mo</b> after tax.
       {#if city.basics > city.salary}
-        That's below the {fmtUsd(city.basics)}/mo one person typically spends here before rent, so tiers measure against
-        that instead.
+        That's below the {fmtUsd(city.basics)}/mo one person typically spends here before rent, so tiers measure against that
+        instead.
       {/if}
-      {#if app.household === 'couple'}A local couple's equivalent is {fmtUsd(localBudget)}.{/if}
+      {#if app.household === 'couple'}A local couple's equivalent is {fmtUsd(ref * HOUSEHOLD_SCALE.couple)}.{/if}
     </p>
 
-    <!-- Retire today -->
+    <!-- At your retirement age -->
     <div class="space-y-1 rounded-lg bg-slate-50 p-2.5">
-      <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Retire today (age {app.age})</div>
+      <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Retire {when} · {fmtUsdCompact(at.portfolio)} saved</div>
       <div class="flex items-center gap-1.5 font-semibold text-slate-900">
-        <span class="inline-block h-3 w-3 rounded-full" style="background: {CLASS_COLORS[r.nowTier]}"></span>
-        {TIERS[r.nowTier].label}
+        <span class="inline-block h-3 w-3 rounded-full" style="background: {CLASS_COLORS[r.tierAt]}"></span>
+        {TIERS[r.tierAt].label}
       </div>
       <p class="text-xs text-slate-600">
-        {#if r.nowTier > 0}
-          {fmtUsd(r.nowSpend)}/mo to live on, {r.nowRatio.toFixed(1)}× a local{#if r.health.over65 > 0}, plus health
-            insurance{/if}. At US prices that's the {fmtPercentile(app.usPercentile(r.nowSpend, city))} percentile of households.
-        {:else if r.nowSpend > 0}
-          Only {fmtUsd(r.nowSpend)}/mo would be left to live on{#if r.health.over65 > 0} after health insurance{/if} —
-          under {fmtUsd(tierSpend(1, ref, app.household))}, what a minimum-wage local earns.
+        {#if r.tierAt > 0}
+          {fmtUsd(r.spendAt)}/mo to live on, {r.ratioAt.toFixed(1)}× a local{#if r.health.over65 > 0}, plus health insurance{/if}. At
+          US prices that's the {fmtPercentile(app.usPercentile(r.spendAt, city))} percentile of households.
+        {:else if r.spendAt > 0}
+          Only {fmtUsd(r.spendAt)}/mo would be left to live on{#if r.health.over65 > 0} after health insurance{/if} — under
+          {fmtUsd(tierSpend(1, ref, app.household))}, what a minimum-wage local earns.
         {:else}
-          Your savings don't yet cover {r.health.under65 > 0 ? 'health insurance and ' : ''}the years before your income starts.
+          Your savings wouldn't yet cover {r.health.under65 > 0 ? 'health insurance and ' : ''}the years before your income starts.
         {/if}
       </p>
     </div>
 
-    <!-- Target tier -->
+    <!-- The ladder -->
     <div class="space-y-1.5 rounded-lg bg-slate-50 p-2.5">
-      <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">
-        {target.label} · {fmtUsd(r.targetSpend)}/mo
-      </div>
-      {#if b.target && b.retireAge !== null}
-        <div class="font-semibold text-slate-900">
-          {r.years === 0 ? 'You can do it now' : `At age ${b.retireAge}`}
-          {#if r.years}<span class="font-normal text-slate-500">· in {r.years} {r.years === 1 ? 'year' : 'years'}</span>{/if}
-        </div>
-        <dl class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 text-xs tabular-nums text-slate-600">
-          <dt>Savings needed then</dt>
+      <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">When could you retire here…</div>
+      <table class="w-full text-xs tabular-nums">
+        <tbody>
+          {#each [...TARGET_TIERS].reverse() as t (t)}
+            {@const y = r.years[t]}
+            <tr class={app.mode === 'when' && t === app.targetTier ? 'font-semibold text-slate-900' : 'text-slate-600'}>
+              <td class="py-0.5">
+                <button class="flex items-center gap-1.5 hover:underline" onclick={() => ((app.targetTier = t), (app.mode = 'when'))}>
+                  <span class="inline-block h-2.5 w-2.5 rounded-full" style="background: {CLASS_COLORS[t]}"></span>
+                  {TIERS[t].label}
+                </button>
+              </td>
+              <td class="py-0.5 text-right text-slate-500">{fmtUsd(tierSpend(t, ref, app.household))}/mo</td>
+              <td class="w-16 py-0.5 text-right">{y === null ? '—' : y === 0 ? 'now' : `age ${app.age + y}`}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+      {#if b.target && b.targetAge !== null}
+        <dl class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 border-t border-slate-200 pt-1.5 text-xs tabular-nums text-slate-600">
+          <dt class="col-span-2 text-[11px] font-medium text-slate-500">{TIERS[app.targetTier].label} at {b.targetAge}: you'd need</dt>
+          <dt>Savings</dt>
           <dd class="text-right font-medium text-slate-900">{fmtUsdCompact(b.target.total)}</dd>
           {#if b.target.perpetual > 0}
             <dt class="pl-2 text-slate-500">withdrawn at {fmtPct(b.target.swr, 2)} for {b.target.horizon} yrs</dt>
@@ -87,9 +101,6 @@
             <dd class="text-right">{fmtPct(app.swrTable.failure(b.target.horizon, b.target.swr), 1)}</dd>
           {/if}
         </dl>
-      {:else}
-        <div class="font-semibold text-slate-900">Not before age {app.planToAge}</div>
-        <p class="text-xs text-slate-600">Try a lower tier, more savings, or a longer horizon.</p>
       {/if}
     </div>
 
@@ -109,6 +120,19 @@
     {:else}
       <p class="text-xs text-slate-400">Numbeo has no quality-of-life score for {city.name}.</p>
     {/if}
+
+    <div class="flex gap-2 text-[11px]">
+      <button class="flex-1 rounded-md border border-slate-200 py-1 text-slate-600 hover:bg-slate-50" onclick={() => app.setPlace(countryId, 'only')}>
+        Only {city.country}
+      </button>
+      <button
+        class="flex-1 rounded-md border border-slate-200 py-1 text-slate-600 hover:bg-slate-50"
+        onclick={() => {
+          app.setPlace(countryId, 'never');
+          app.selectedCityId = null;
+        }}>Never {city.country}</button
+      >
+    </div>
 
     <details class="text-xs text-slate-600">
       <summary class="cursor-pointer select-none text-slate-500 hover:text-slate-700">Numbeo indexes (NYC = 100)</summary>

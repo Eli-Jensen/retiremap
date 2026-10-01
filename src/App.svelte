@@ -8,11 +8,26 @@
   import Filters from './lib/components/Filters.svelte';
   import ModeBar from './lib/components/ModeBar.svelte';
   import Methods from './lib/components/Methods.svelte';
-  import { app, readHash, writeHash, fmtUsdCompact } from './lib/state.svelte.ts';
+  import { app, readHash, writeHash, loadSaved, save, fmtUsdCompact } from './lib/state.svelte.ts';
 
-  const wide = typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
+  const wide = window.matchMedia('(min-width: 1024px)').matches;
   app.tab = wide ? 'map' : 'list';
-  if (typeof window !== 'undefined') readHash(window.location.hash);
+
+  // A link's hash wins over the plan saved in this browser — but a shared
+  // plan isn't saved over yours until you change something.
+  const saved = loadSaved();
+  const linked = window.location.hash.replace(/^#$/, '');
+  if (linked) {
+    readHash(linked);
+    app.sharedPlan = saved !== null && saved !== linked;
+  } else if (saved) readHash(saved);
+  let baseline = writeHash();
+
+  function useMyPlan() {
+    readHash(saved ?? '');
+    baseline = writeHash();
+    app.sharedPlan = false;
+  }
 
   // Phones start with the inputs collapsed to a one-line summary.
   let inputsOpen = $state(wide);
@@ -22,6 +37,11 @@
   let pending = 0;
   $effect(() => {
     const hash = writeHash();
+    if (hash !== baseline) {
+      baseline = hash;
+      app.sharedPlan = false;
+      save(hash);
+    }
     clearTimeout(pending);
     pending = window.setTimeout(() => {
       if (hash !== window.location.hash) history.replaceState(null, '', hash || window.location.pathname);
@@ -61,7 +81,9 @@
       onclick={() => (inputsOpen = !inputsOpen)}
     >
       <span>
-        Age {app.age} · {app.household} · {fmtUsdCompact(app.portfolio)} saved · +{fmtUsdCompact(app.annualSavings)}/yr
+        Age {app.age} → {app.retireAge} · {app.household} · {fmtUsdCompact(app.netWorth)} saved · +{fmtUsdCompact(app.annualSavings)}/yr{app.filtersActive > 0
+          ? ` · ${app.filtersActive} filter${app.filtersActive > 1 ? 's' : ''}`
+          : ''}
       </span>
       <span class="font-medium text-blue-600">{inputsOpen ? 'Done' : 'Edit'}</span>
     </button>
@@ -73,6 +95,12 @@
   </aside>
 
   <main class="flex min-h-0 flex-1 flex-col">
+    {#if app.sharedPlan}
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+        <span>You're looking at a shared plan. Yours is still saved — it's replaced only if you change something here.</span>
+        <button class="font-medium underline" onclick={useMyPlan}>Switch to my plan</button>
+      </div>
+    {/if}
     <div class="space-y-2 border-b border-slate-200 bg-white px-4 py-3">
       <ModeBar />
       <div class="flex rounded-lg border border-slate-200 p-0.5 sm:inline-flex" role="tablist" aria-label="View">

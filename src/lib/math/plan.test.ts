@@ -116,3 +116,44 @@ describe('tiers', () => {
     expect(tierIndex(localRatio(tierSpend(4, 800, 'single'), 800, 'single'))).toBe(4);
   });
 });
+
+import { project, blendedTax, yearsToRetireFrom, total } from './plan.ts';
+import type { AccountsPlan } from './plan.ts';
+
+describe('accounts', () => {
+  const plan: AccountsPlan = {
+    age: 40,
+    buckets: { cash: 10_000, brokerage: 50_000, traditional: 100_000, roth: 40_000 },
+    annualSavings: 10_000,
+    savingsTo: 'traditional',
+    realReturn: 0.05,
+    cashReturn: 0,
+    tax: { traditional: 0.1, brokerage: 0.02 },
+  };
+  it('blends tax by balance; cash and Roth are untaxed', () => {
+    expect(blendedTax(plan.buckets, plan.tax)).toBeCloseTo((100_000 * 0.1 + 50_000 * 0.02) / 200_000, 12);
+    expect(blendedTax({ cash: 0, brokerage: 0, traditional: 0, roth: 0 }, plan.tax)).toBe(0.1);
+  });
+  it('grows invested accounts at the real return, cash at the cash return, and adds savings at year end', () => {
+    const p = project(plan, 2);
+    expect(p[0].portfolio).toBe(200_000);
+    expect(p[1].buckets.cash).toBe(10_000);
+    expect(p[1].buckets.roth).toBeCloseTo(42_000, 9);
+    expect(p[1].buckets.traditional).toBeCloseTo(115_000, 9);
+    expect(p[2].age).toBe(42);
+    expect(p[1].portfolio).toBeCloseTo(total(p[1].buckets), 9);
+  });
+  it('matches the single-portfolio projection when everything is invested', () => {
+    const simple: AccountsPlan = { ...plan, buckets: { cash: 0, brokerage: 0, traditional: 200_000, roth: 0 } };
+    const p = project(simple, 10);
+    expect(p[10].portfolio).toBeCloseTo(portfolioAfter({ age: 40, portfolio: 200_000, annualSavings: 10_000, realReturn: 0.05 }, 10), 6);
+  });
+  it('yearsToRetireFrom uses each year’s own tax blend', () => {
+    const roth: AccountsPlan = { ...plan, buckets: { cash: 0, brokerage: 0, traditional: 0, roth: 500_000 }, annualSavings: 0, savingsTo: 'roth' };
+    const trad: AccountsPlan = { ...roth, buckets: { cash: 0, brokerage: 0, traditional: 500_000, roth: 0 }, savingsTo: 'traditional' };
+    const a = flat4();
+    const yr = yearsToRetireFrom(1700, noHealth, project(roth, 30), a)!;
+    const yt = yearsToRetireFrom(1700, noHealth, project(trad, 30), a)!;
+    expect(yr).toBeLessThan(yt); // same balance, taxed money buys less
+  });
+});

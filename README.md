@@ -1,9 +1,10 @@
 # RetireMap 🌍
 
 A static web app that answers: **where — and when — could you retire, and at
-what level?** Enter your age, savings, yearly saving, and retirement income;
-every one of 555 cities is rated by the lifestyle you could afford there,
-measured against what locals earn:
+what level?** Enter your age, the age you want to retire, your accounts
+(checking, savings, brokerage, 401(k)/IRA, Roth), yearly saving, and
+retirement income; every one of 555 cities is rated by the lifestyle you
+could afford there, measured against what locals earn:
 
 | Tier | Monthly spend vs. the local reference |
 |---|---|
@@ -16,12 +17,21 @@ measured against what locals earn:
 
 Two questions, map or list:
 
-- **Retire today** — the tier your savings buy in each city right now.
+- **Retire at [age]** — the tier your projected savings buy in each city.
 - **When could I…** — pick a tier; see the age you could retire there at it.
 
-Filter by Numbeo's Quality of Life Index and region. Every input starts at a
-cited, data-backed default (`src/data/defaults.json`) and is mirrored to the
-URL hash so a plan can be shared.
+The list shows the age for *every* tier per city, with selectable columns
+and sorting. Filter by place — "only"/"never" any continent, UN M49
+sub-region (Southeast Asia…), group (EU, Middle East), or country — and by
+Numbeo quality of life, safety, health care, pollution, climate, city size,
+or minimum tier. Every input starts at a cited, data-backed default
+(`src/data/defaults.json`) — from a **FIRE saver** starting point by default
+(median r/financialindependence survey respondent still accumulating: 35,
+couple, retiring at 48, ~$613k across accounts, saving ~$101k/yr) or a
+**Typical American** one (Fed SCF / Census / Vanguard / Gallup medians) —
+is remembered in this browser (localStorage),
+and is mirrored to the URL hash so a plan can be shared; opening someone
+else's link doesn't overwrite your saved plan unless you edit it.
 
 Svelte 5 + Vite + TypeScript + Tailwind v4 + MapLibre GL. No backend, no
 accounts, no tracking; all computation is client-side (~7 ms per full
@@ -60,8 +70,11 @@ npm run deploy     # build + firebase deploy --only hosting (project retiremap-e
   pinned to the Python reference by `swr.test.ts`. Made non-increasing in
   horizon (the raw 5th percentile turns up past ~57 years as the 1960s–70s
   cohorts drop out).
-- **When**: savings grow at the historical real CAGR of the stock/bond mix
-  plus yearly contributions; first year the projection covers the need.
+- **Accounts**: invested accounts grow at the historical real CAGR of the
+  stock/bond mix, checking/savings at 0% real; yearly saving goes into the
+  account you pick. Withdrawals are pro rata, so the tax gross-up is a
+  balance-weighted blend (401(k)/IRA rate, brokerage rate, 0 for Roth/cash).
+- **When**: per city and tier, the first year the projection covers the need.
 - **Health**: per person, outside the US international-plan broker quotes
   ($470 <65 / $800 65+); US ACA full price ($1,330) / Medicare + Medigap + Part
   D ($430).
@@ -97,28 +110,38 @@ once or twice a year:
    curl -so pipeline/raw/fred_deciles.csv "https://fred.stlouisfed.org/graph/fredgraph.csv?id=CXUTOTALEXPLB1502M,CXUTOTALEXPLB1503M,CXUTOTALEXPLB1504M,CXUTOTALEXPLB1505M,CXUTOTALEXPLB1506M,CXUTOTALEXPLB1507M,CXUTOTALEXPLB1508M,CXUTOTALEXPLB1509M,CXUTOTALEXPLB1510M,CXUTOTALEXPLB1511M"
    ```
    then bump the year + cross-checks in `pipeline/build-deciles.ts`.
-5. `npm run pipeline` — matches cities, prints the salary/basics calibration
+5. **UN M49 regions** (rarely changes): save the table from
+   <https://unstats.un.org/unsd/methodology/m49/overview/> as
+   `pipeline/raw/m49.csv` (columns as on that page: … Region Name, Sub-region
+   Name, Intermediate Region Name, … ISO-alpha2 Code …). Taiwan and Kosovo
+   aren't in M49 and are placed in `pipeline/places.ts`.
+6. `npm run pipeline` — matches cities, prints the salary/basics calibration
    tables, and trips loudly on anything suspicious (salary error > 5%, basics
    error > 10%, < 250 QoL-rated cities…). Fix stragglers in
    `pipeline/overrides.json`, commit the regenerated `src/data/*.json`.
-6. **Market history** (`src/data/market.json`) is exported from the
+7. **Market history** (`src/data/market.json`) is exported from the
    trinity-study project (`make web-data` there); copy it and
    `src/lib/math/swr.reference.json` across together.
-7. **Defaults** (`src/data/defaults.json`) — re-check the sources listed in
+8. **Defaults** (`src/data/defaults.json`) — re-check the sources listed in
    it, especially the Fed SCF (2025 survey due), SSA COLA, and KFF premiums.
 
 ## Manual smoke checklist
 
-1. Default inputs: "Not enough to retire today" anywhere; "When could I…"
-   shows Chiang Mai/Medellín like a local around 49, Lisbon 52, Austin 64.
-2. Savings $1M → most cities flip to a tier; Lisbon "Comfortable".
-3. Raise Social Security → retire-by ages drop (Lisbon comfortable 60 → 56 at
-   $40k).
-4. QoL ≥ 150 → ~189 cities; unrated cities dim on the map, vanish from the list.
-5. Copy the URL into a new tab → every input restored; removing a key from
-   the hash resets that input.
-6. 375 px wide: list is the default, inputs collapse to a summary, detail
-   card docks at the bottom, no horizontal scroll.
+1. Fresh browser (no saved plan): FIRE saver — "Retiring at 48 with $3.38M,
+   you could live in 555 of 555 cities — like a king in 171". Switch to
+   Typical American: "Retiring at 66 with $892K … like a king in 96".
+2. Map colors: red/amber/green/blue/purple tiers clearly distinct; dots
+   hidden entirely when filtered out.
+3. Place filter: type "India" → Never, "Africa" → Never → 500 cities, none in
+   Africa or India; chips show struck through; "Clear all filters" resets.
+4. List: one column per tier (age you'd reach it, bold when ≤ your retire
+   age), Columns ▾ adds QoL/safety/…; header click sorts both ways.
+5. Reload with a bare URL → everything you entered comes back. Open a link
+   with a different plan → amber "shared plan" banner, your saved plan
+   untouched until you edit; "Switch to my plan" restores it.
+6. 375 px wide: list default, inputs collapse to a summary (shows filter
+   count), table scrolls sideways with the city column pinned, no page-level
+   horizontal scroll.
 
 ## Data credits & licenses
 
