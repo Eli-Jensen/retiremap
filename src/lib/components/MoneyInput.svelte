@@ -32,14 +32,7 @@
 </script>
 
 <div class="space-y-1">
-  <div class="flex items-baseline justify-between gap-2">
-    <label class="text-xs font-medium text-slate-600" for={id}>{label}</label>
-    {#if value !== null}
-      <button class="text-[11px] text-blue-600 hover:underline" onclick={() => onchange(null)}>reset to typical</button>
-    {:else if hint}
-      <span class="truncate text-[11px] text-slate-400">{hint}</span>
-    {/if}
-  </div>
+  <label class="block truncate text-xs font-medium text-slate-600" for={id} title={label}>{label}</label>
   <div class="relative">
     <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
     <input
@@ -47,7 +40,7 @@
       type="text"
       inputmode="decimal"
       autocomplete="off"
-      class="w-full rounded-lg border bg-white py-2 pl-7 pr-12 text-sm tabular-nums focus:border-blue-500 focus:outline-none {value === null
+      class="w-full rounded-lg border bg-white py-2 pl-7 pr-10 text-sm tabular-nums focus:border-blue-500 focus:outline-none {value === null
         ? 'border-slate-200 text-slate-500'
         : 'border-slate-300 text-slate-900'}"
       value={shown}
@@ -67,4 +60,9 @@
       <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">{suffix}</span>
     {/if}
   </div>
+  {#if value !== null}
+    <button class="text-[11px] text-blue-600 hover:underline" onclick={() => onchange(null)}>reset to typical</button>
+  {:else if hint}
+    <p class="text-[11px] leading-tight text-slate-400">{hint}</p>
+  {/if}
 </div>

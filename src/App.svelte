@@ -11,7 +11,6 @@
   import { app, readHash, writeHash, loadSaved, save, fmtUsdCompact } from './lib/state.svelte.ts';
 
   const wide = window.matchMedia('(min-width: 1024px)').matches;
-  app.tab = wide ? 'map' : 'list';
 
   // A link's hash wins over the plan saved in this browser — but a shared
   // plan isn't saved over yours until you change something.
@@ -81,7 +80,7 @@
       onclick={() => (inputsOpen = !inputsOpen)}
     >
       <span>
-        Age {app.age} → {app.retireAge} · {app.household} · {fmtUsdCompact(app.netWorth)} saved · +{fmtUsdCompact(app.annualSavings)}/yr{app.filtersActive > 0
+        Age {app.age} → {app.retireAge} · {app.household} · {fmtUsdCompact(app.netWorth)} saved · +{fmtUsdCompact(app.thisYear.wanted)}/yr{app.filtersActive > 0
           ? ` · ${app.filtersActive} filter${app.filtersActive > 1 ? 's' : ''}`
           : ''}
       </span>

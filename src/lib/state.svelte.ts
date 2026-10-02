@@ -3,8 +3,9 @@ import { buildCurve } from './math/percentile.ts';
 import { equivAnnualUS } from './math/col.ts';
 import { buildMonthly, buildSwrTable, mix, realCagr } from './math/swr.ts';
 import type { Market } from './math/swr.ts';
-import { affordableMonthly, need, project, yearsToRetireFrom, MAX_YEARS } from './math/plan.ts';
-import type { Assumptions, BucketKey, Buckets, Health, NeedBreakdown, ProjectionYear } from './math/plan.ts';
+import { affordableMonthly, need, project, yearsToRetireFrom, yearContribution, MAX_YEARS, CONTRIB_KEYS } from './math/plan.ts';
+import type { Assumptions, Buckets, ContribKey, Contributions, Health, Limits, NeedBreakdown, ProjectionYear } from './math/plan.ts';
+import { estimateSocialSecurity } from './math/socialSecurity.ts';
 import { TIERS, tierIndex, localRatio, localReference, tierSpend } from './math/tiers.ts';
 import type { Household } from './math/tiers.ts';
 import citiesJson from '../data/cities.json';
@@ -33,6 +34,11 @@ export const PERSONAS: PersonaId[] = ['fire', 'typical'];
 const byAge = (brackets: { maxAge: number; value: number }[], age: number) => brackets.find((b) => age <= b.maxAge)!.value;
 
 export type Mode = 'at' | 'when';
+export type TierWhen = 'now' | 'at' | 'by';
+export const LIMITS: Limits = defaults.limits;
+/** Map on wide screens, list on phones — until you pick one (remembered). */
+export const DEFAULT_TAB: Tab =
+  typeof window !== 'undefined' && !window.matchMedia('(min-width: 1024px)').matches ? 'list' : 'map';
 export type Tab = 'map' | 'list';
 
 /** Tier indices that have a "when could I…" answer (everything but "Not enough"). */
@@ -40,6 +46,8 @@ export const TARGET_TIERS = [1, 2, 3, 4, 5] as const;
 
 export type CityResult = {
   health: Health; // household $/mo
+  spendNow: number; // $/mo you could spend retiring today (excl. health)
+  tierNow: number;
   spendAt: number; // $/mo you could spend retiring at the chosen age (excl. health)
   ratioAt: number; // spendAt vs the local reference, per adult-equivalent
   tierAt: number; // index into TIERS
@@ -64,8 +72,9 @@ export function whenClass(years: number | null): number {
 
 // --- list columns ---
 
-export type ColumnId = 'at' | `t${1 | 2 | 3 | 4 | 5}` | 'qol' | 'safety' | 'healthCare' | 'pollution' | 'climate' | 'salary' | 'pop';
+export type ColumnId = 'now' | 'at' | `t${1 | 2 | 3 | 4 | 5}` | 'qol' | 'safety' | 'healthCare' | 'pollution' | 'climate' | 'salary' | 'pop';
 export const COLUMNS: { id: ColumnId; label: string; short?: string }[] = [
+  { id: 'now', label: 'Retire today' },
   { id: 'at', label: 'At your retirement age' },
   ...TARGET_TIERS.map((t) => ({ id: `t${t}` as ColumnId, label: TIERS[t].label })),
   { id: 'qol', label: 'Quality of life', short: 'QoL' },
@@ -76,7 +85,7 @@ export const COLUMNS: { id: ColumnId; label: string; short?: string }[] = [
   { id: 'salary', label: 'Local salary', short: 'Salary' },
   { id: 'pop', label: 'Population', short: 'Pop.' },
 ];
-export const DEFAULT_COLUMNS: ColumnId[] = ['at', 't1', 't2', 't3', 't4', 't5', 'qol'];
+export const DEFAULT_COLUMNS: ColumnId[] = ['now', 'at', 't1', 't2', 't3', 't4', 't5', 'qol'];
 export type SortKey = 'best' | 'name' | ColumnId;
 
 class AppState {
@@ -92,8 +101,14 @@ class AppState {
   brokerageInput = $state<number | null>(null);
   traditionalInput = $state<number | null>(null);
   roth = $state(0);
-  savingsInput = $state<number | null>(null);
-  savingsToInput = $state<BucketKey | null>(null);
+  hsaBalance = $state(0);
+  contribInput = $state<Partial<Contributions>>({}); // missing = persona default (% of income)
+  growthInput = $state<number | null>(null);
+
+  // --- income (drives contribution defaults and the Social Security estimate) ---
+  incomeInput = $state<number | null>(null);
+  partnerIncomeInput = $state<number | null>(null);
+  careerStartInput = $state<number | null>(null);
 
   // --- income ---
   ssInput = $state<number | null>(null);
@@ -120,12 +135,14 @@ class AppState {
   maxPollution = $state(100);
   minClimate = $state(0);
   minPop = $state(0);
-  minTierAt = $state(0); // only cities where retiring at your age reaches at least this tier
+  minTier = $state(0); // only cities where you could live at least this tier…
+  minTierWhen = $state<TierWhen>('now'); // …today, at your retirement age, or by a given age
+  minTierByAge = $state(55);
 
   // --- view ---
   mode = $state<Mode>('at');
   targetTier = $state(2); // "Like a local"
-  tab = $state<Tab>('map');
+  tab = $state<Tab>(DEFAULT_TAB);
   columns = $state<ColumnId[]>([...DEFAULT_COLUMNS]);
   sort = $state<SortKey>('best');
   sortDesc = $state(false);
@@ -141,18 +158,53 @@ class AppState {
   checking = $derived(this.checkingInput ?? byAge(this.p.cashByAge, this.age));
   traditional = $derived(this.traditionalInput ?? byAge(this.p.retirementByAge, this.age));
   brokerage = $derived(this.brokerageInput ?? byAge(this.p.brokerageByAge, this.age));
-  annualSavings = $derived(this.savingsInput ?? this.p.annualSavings);
-  savingsTo: BucketKey = $derived(this.savingsToInput ?? (this.p.savingsTo as BucketKey));
   stockPct = $derived(this.stockInput ?? this.p.stockPct);
-  socialSecurity = $derived(this.ssInput ?? defaults.socialSecurity[this.household]);
   persons = $derived(this.household === 'couple' ? 2 : 1);
+  income = $derived(this.incomeInput ?? this.p.income.you);
+  partnerIncome = $derived(this.household === 'couple' ? (this.partnerIncomeInput ?? this.p.income.partner) : 0);
+  householdIncome = $derived(this.income + this.partnerIncome);
+  careerStart = $derived(this.careerStartInput ?? defaults.careerStartAge.value);
+  /** IRS caps at your current age (household totals). */
+  caps = $derived.by(() => {
+    const a = this.age;
+    const n = this.persons;
+    return {
+      k401: n * (LIMITS.k401 + (a >= 60 && a <= 63 ? LIMITS.k401CatchUp60to63 : a >= 50 ? LIMITS.k401CatchUp50 : 0)),
+      ira: n * (LIMITS.ira + (a >= 50 ? LIMITS.iraCatchUp50 : 0)),
+      hsa: (n > 1 ? LIMITS.hsaFamily : LIMITS.hsaSelf) + (a >= 55 ? n * LIMITS.hsaCatchUp55 : 0),
+    };
+  });
+  /** Your amounts where typed, else the persona's share of income — clipped to this year's caps so defaults never overflow. */
+  contributions: Contributions = $derived.by(() => {
+    const def = (k: ContribKey) => Math.round((this.p.contributionPct[k] * this.householdIncome) / 100) * 100;
+    const c = Object.fromEntries(CONTRIB_KEYS.map((k) => [k, this.contribInput[k] ?? def(k)])) as Contributions;
+    const typed = (k: ContribKey) => this.contribInput[k] !== undefined;
+    if (!typed('rothIra')) c.rothIra = Math.min(c.rothIra, this.caps.ira);
+    if (!typed('hsa')) c.hsa = Math.min(c.hsa, this.caps.hsa);
+    if (!typed('k401')) c.k401 = Math.min(c.k401, Math.max(0, this.caps.k401 - c.roth401k));
+    if (!typed('roth401k')) c.roth401k = Math.min(c.roth401k, Math.max(0, this.caps.k401 - c.k401));
+    return c;
+  });
+  contributionGrowth = $derived(this.growthInput ?? defaults.contributionGrowth.value);
+  /** This year's contributions after IRS caps (what actually lands where). */
+  thisYear = $derived(yearContribution(this.contributions, 1, this.age, this.persons, LIMITS));
+  socialSecurityEstimate = $derived(
+    estimateSocialSecurity({
+      earnings: this.household === 'couple' ? [this.income, this.partnerIncome] : [this.income],
+      careerStartAge: this.careerStart,
+      retireAge: this.retireAge,
+      claimAge: this.ssStartAge,
+    }),
+  );
+  socialSecurity = $derived(this.ssInput ?? Math.round(this.socialSecurityEstimate / 10) * 10);
   buckets: Buckets = $derived({
     cash: this.checking + this.savingsAcct,
     brokerage: this.brokerage,
     traditional: this.traditional,
     roth: this.roth,
+    hsa: this.hsaBalance,
   });
-  netWorth = $derived(this.buckets.cash + this.buckets.brokerage + this.buckets.traditional + this.buckets.roth);
+  netWorth = $derived(this.buckets.cash + this.buckets.brokerage + this.buckets.traditional + this.buckets.roth + this.buckets.hsa);
 
   swrTable = $derived(buildSwrTable(monthly, this.stockPct / 100, this.maxFailure));
   historicalReturn = $derived(realCagr(mix(monthly.stock, monthly.bond, this.stockPct / 100)));
@@ -179,8 +231,10 @@ class AppState {
       {
         age: this.age,
         buckets: this.buckets,
-        annualSavings: this.annualSavings,
-        savingsTo: this.savingsTo,
+        contributions: this.contributions,
+        contributionGrowth: this.contributionGrowth,
+        adults: this.persons,
+        limits: LIMITS,
         realReturn: this.realReturn,
         cashReturn: defaults.cashReturn.value,
         tax: { traditional: this.taxRate, brokerage: this.brokerageTax },
@@ -198,8 +252,12 @@ class AppState {
     const proj = this.projection;
     const at = this.atRetirement;
     // Spend at the retirement age only depends on the health schedule (US or not).
+    const now = proj[0];
     const spendUS = affordableMonthly(at.portfolio, this.healthUS, at.age, a, at.taxRate);
     const spendAbroad = affordableMonthly(at.portfolio, this.healthAbroad, at.age, a, at.taxRate);
+    const nowUS = affordableMonthly(now.portfolio, this.healthUS, now.age, a, now.taxRate);
+    const nowAbroad = affordableMonthly(now.portfolio, this.healthAbroad, now.age, a, now.taxRate);
+    const tierBy = this.minTierWhen === 'now' ? this.age : this.minTierWhen === 'at' ? this.retireAge : this.minTierByAge;
     const only = new Set(this.only);
     const never = new Set(this.never);
     const out = new Map<string, CityResult>();
@@ -210,6 +268,8 @@ class AppState {
       const ref = localReference(c);
       const ratioAt = localRatio(spendAt, ref, this.household);
       const tierAt = tierIndex(ratioAt);
+      const spendNow = us ? nowUS : nowAbroad;
+      const tierNow = tierIndex(localRatio(spendNow, ref, this.household));
       const years: (number | null)[] = [null];
       for (const t of TARGET_TIERS) years[t] = yearsToRetireFrom(tierSpend(t, ref, this.household), health, proj, a);
       const q = c.qol;
@@ -222,9 +282,11 @@ class AppState {
         (this.maxPollution >= 100 || (q !== undefined && q.pollution <= this.maxPollution)) &&
         (this.minClimate <= 0 || (q?.climate ?? 0) >= this.minClimate) &&
         (this.minPop <= 0 || (c.pop ?? 0) >= this.minPop) &&
-        tierAt >= this.minTierAt;
+        (this.minTier <= 0 || (years[this.minTier] !== null && this.age + years[this.minTier]! <= tierBy));
       out.set(c.id, {
         health,
+        spendNow,
+        tierNow,
         spendAt,
         ratioAt,
         tierAt,
@@ -267,7 +329,7 @@ class AppState {
       Number(this.maxPollution < 100) +
       Number(this.minClimate > 0) +
       Number(this.minPop > 0) +
-      Number(this.minTierAt > 0),
+      Number(this.minTier > 0),
   );
 
   selectedCity = $derived(this.selectedCityId ? (cityById.get(this.selectedCityId) ?? null) : null);
@@ -341,7 +403,6 @@ const money = (raw: string) => {
   const n = num(raw);
   return n === null ? null : Math.max(0, n);
 };
-const BUCKETS: BucketKey[] = ['cash', 'brokerage', 'traditional', 'roth'];
 const d = defaults;
 
 const nullableAge = (lo: number, hi: number) => (r: string) => {
@@ -359,8 +420,19 @@ const FIELDS: Field[] = [
   field('brk', () => app.brokerageInput, (v) => (app.brokerageInput = v), money, null),
   field('nw', () => app.traditionalInput, (v) => (app.traditionalInput = v), money, null),
   field('roth', () => app.roth, (v) => (app.roth = v), (r) => money(r) ?? 0, 0),
-  field('save', () => app.savingsInput, (v) => (app.savingsInput = v), money, null),
-  field('into', () => app.savingsToInput, (v) => (app.savingsToInput = v), (r) => ((BUCKETS as string[]).includes(r) ? (r as BucketKey) : null), null as BucketKey | null),
+  field('hsab', () => app.hsaBalance, (v) => (app.hsaBalance = v), (r) => money(r) ?? 0, 0),
+  ...CONTRIB_KEYS.map((k) =>
+    field(`c-${k}`, () => app.contribInput[k] ?? null, (v) => {
+      const next = { ...app.contribInput };
+      if (v === null) delete next[k];
+      else next[k] = v;
+      app.contribInput = next;
+    }, money, null as number | null),
+  ),
+  field('cg', () => app.growthInput, (v) => (app.growthInput = v), (r) => { const n = num(r); return n === null ? null : Math.max(-0.05, Math.min(0.1, n)); }, null),
+  field('inc1', () => app.incomeInput, (v) => (app.incomeInput = v), money, null),
+  field('inc2', () => app.partnerIncomeInput, (v) => (app.partnerIncomeInput = v), money, null),
+  field('work', () => app.careerStartInput, (v) => (app.careerStartInput = v), nullableAge(14, 70), null),
   field('ss', () => app.ssInput, (v) => (app.ssInput = v), money, null),
   field('ssAge', () => app.ssStartAge, (v) => (app.ssStartAge = v), clamped(50, 75, d.socialSecurity.startAge), d.socialSecurity.startAge),
   field('inc', () => app.otherIncome, (v) => (app.otherIncome = v), clamped(0, 1e7, 0), d.otherIncome.value),
@@ -384,17 +456,28 @@ const FIELDS: Field[] = [
   field('poll', () => app.maxPollution, (v) => (app.maxPollution = v), clamped(0, 100, 100), 100),
   field('clim', () => app.minClimate, (v) => (app.minClimate = v), clamped(0, 100, 0), 0),
   field('pop', () => app.minPop, (v) => (app.minPop = v), clamped(0, 1e8, 0), 0),
-  field('mintier', () => app.minTierAt, (v) => (app.minTierAt = Math.round(v)), clamped(0, TIERS.length - 1, 0), 0),
+  field('mintier', () => app.minTier, (v) => (app.minTier = Math.round(v)), clamped(0, TIERS.length - 1, 0), 0),
+  field('tierwhen', () => app.minTierWhen, (v) => (app.minTierWhen = v), (r): TierWhen => (r === 'at' || r === 'by' ? r : 'now'), 'now' as TierWhen),
+  field('tierby', () => app.minTierByAge, (v) => (app.minTierByAge = Math.round(v)), clamped(18, 100, 55), 55),
   listField('cols', () => app.columns, (v) => (app.columns = v), (s) => COLUMNS.some((c) => c.id === s), DEFAULT_COLUMNS),
+  field('view', () => app.tab, (v) => (app.tab = v), (r): Tab => (r === 'list' ? 'list' : 'map'), DEFAULT_TAB),
   field('sort', () => app.sort, (v) => (app.sort = v), (r): SortKey => (r === 'best' || r === 'name' || COLUMNS.some((c) => c.id === r) ? (r as SortKey) : 'best'), 'best' as SortKey),
   field('desc', () => app.sortDesc, (v) => (app.sortDesc = v), (r) => r === 'true', false),
   field('city', () => app.selectedCityId, (v) => (app.selectedCityId = v), (r) => (cityById.has(r) ? r : null), null as string | null),
 ];
 
-const FILTER_KEYS = new Set(['only', 'never', 'qol', 'safe', 'hc', 'poll', 'clim', 'pop', 'mintier']);
+const FILTER_KEYS = new Set(['only', 'never', 'qol', 'safe', 'hc', 'poll', 'clim', 'pop', 'mintier', 'tierwhen', 'tierby']);
+
+const LEGACY_INTO: Record<string, ContribKey> = { traditional: 'k401', roth: 'rothIra', brokerage: 'brokerage', cash: 'cash' };
 
 export function readHash(hash: string): void {
   const params = new URLSearchParams(hash.replace(/^#/, ''));
+  // v2.1 had one "adding per year" number going into one account.
+  const save = params.get('save');
+  if (save !== null && !CONTRIB_KEYS.some((k) => params.has(`c-${k}`))) {
+    const into = LEGACY_INTO[params.get('into') ?? 'traditional'] ?? 'k401';
+    for (const k of CONTRIB_KEYS) params.set(`c-${k}`, k === into ? save : '0');
+  }
   for (const f of FIELDS) {
     const raw = params.get(f.key);
     if (raw !== null) f.set(raw);

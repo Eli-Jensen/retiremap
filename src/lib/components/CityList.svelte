@@ -14,6 +14,7 @@
 
   /** Sort value per column; null always sorts last. Second element: natural direction is descending. */
   const value: Record<ColumnId, [(c: CityRecord, r: CityResult) => number | null, boolean]> = {
+    now: [(_c, r) => r.spendNow / localReference(_c), true],
     at: [(_c, r) => r.ratioAt, true],
     t1: [(_c, r) => r.years[1], false],
     t2: [(_c, r) => r.years[2], false],
@@ -29,7 +30,13 @@
     pop: [(c) => c.pop ?? null, true],
   };
 
-  const visibleCols = $derived(COLUMNS.filter((c) => app.columns.includes(c.id)));
+  // The column you sort by sits right after the city name, shown even if you'd hidden it.
+  const visibleCols = $derived.by(() => {
+    const cols = COLUMNS.filter((c) => app.columns.includes(c.id));
+    const key = app.sort === 'best' ? (app.mode === 'when' ? `t${app.targetTier}` : 'at') : app.sort;
+    const sorted = COLUMNS.find((c) => c.id === key);
+    return sorted ? [sorted, ...cols.filter((c) => c.id !== sorted.id)] : cols;
+  });
 
   const rows = $derived.by(() => {
     const q = fold(query.trim());
@@ -67,7 +74,22 @@
     app.columns = app.columns.includes(id) ? app.columns.filter((c) => c !== id) : COLUMNS.map((c) => c.id).filter((c) => c === id || app.columns.includes(c));
   }
 
-  const arrow = (key: SortKey) => (app.sort === key ? (app.sortDesc ? ' ↑' : ' ↓') : '');
+  /** Natural direction per key: true when "best first" means descending values. */
+  const naturalDesc = (key: SortKey) => (key === 'best' || key === 'name' ? false : value[key][1]);
+  /** Arrow shows the actual order of values: ↓ = highest first. */
+  const descending = $derived(naturalDesc(app.sort) !== app.sortDesc);
+  const arrow = (key: SortKey) => (app.sort === key && key !== 'best' ? (descending ? ' ↓' : ' ↑') : '');
+  const colLabel = (col: { id: ColumnId; label: string; short?: string }) =>
+    col.id === 'at' ? `At ${app.retireAge}` : col.id === 'now' ? 'Today' : (col.short ?? col.label);
+  const sortOptions = $derived([
+    { key: 'best' as SortKey, label: app.mode === 'when' ? `Soonest to ${TIERS[app.targetTier].verb}` : `Best at ${app.retireAge}` },
+    { key: 'name' as SortKey, label: 'Name' },
+    ...COLUMNS.map((c) => ({ key: c.id as SortKey, label: c.id === 'at' ? `Lifestyle at ${app.retireAge}` : c.id === 'now' ? 'Lifestyle today' : /^t\d$/.test(c.id) ? `Soonest ${c.label.toLowerCase()}` : c.label })),
+  ]);
+  function setSort(key: SortKey) {
+    app.sort = key;
+    app.sortDesc = false; // each key starts in its natural "best first" order
+  }
   const tierCol = (id: ColumnId) => /^t\d$/.test(id);
 </script>
 
@@ -81,6 +103,19 @@
       bind:value={query}
     />
     <span class="text-xs tabular-nums text-slate-500">{rows.length} cities</span>
+    <div class="flex items-center gap-1">
+      <select aria-label="Sort by" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs" value={app.sort} onchange={(e) => setSort(e.currentTarget.value as SortKey)}>
+        {#each sortOptions as o (o.key)}
+          <option value={o.key}>Sort: {o.label}</option>
+        {/each}
+      </select>
+      <button
+        class="rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+        title="Reverse the order"
+        aria-label="Reverse sort order"
+        onclick={() => (app.sortDesc = !app.sortDesc)}>{app.sort === 'best' ? (app.sortDesc ? 'worst first' : 'best first') : app.sort === 'name' ? (app.sortDesc ? 'Z→A' : 'A→Z') : descending ? 'high → low' : 'low → high'}</button
+      >
+    </div>
     <div class="relative">
       <button
         class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
@@ -95,7 +130,7 @@
               {#if tierCol(c.id)}
                 <span class="inline-block h-2.5 w-2.5 rounded-full" style="background: {CLASS_COLORS[Number(c.id[1])]}"></span>
               {/if}
-              {c.id === 'at' ? `At ${app.retireAge}` : c.label}
+              {c.id === 'at' ? `At ${app.retireAge} (your plan)` : c.label}
             </label>
           {/each}
           <div class="flex justify-between border-t border-slate-100 pt-2">
@@ -120,7 +155,7 @@
                 {#if tierCol(col.id)}
                   <span class="inline-block h-2 w-2 rounded-full" style="background: {CLASS_COLORS[Number(col.id[1])]}"></span>
                 {/if}
-                {col.id === 'at' ? `At ${app.retireAge}` : (col.short ?? col.label)}{arrow(col.id)}
+                {colLabel(col)}{arrow(col.id)}
               </button>
             </th>
           {/each}
@@ -136,13 +171,14 @@
               <div class="text-[11px] text-slate-500">{c.admin ? `${c.admin}, ` : ''}{c.country}</div>
             </td>
             {#each visibleCols as col (col.id)}
-              {#if col.id === 'at'}
+              {#if col.id === 'at' || col.id === 'now'}
+                {@const tier = col.id === 'at' ? r.tierAt : r.tierNow}
                 <td class="px-2 py-2">
                   <div class="flex items-center gap-1.5 whitespace-nowrap leading-tight text-slate-800">
-                    <span class="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style="background: {CLASS_COLORS[r.tierAt]}"></span>
-                    {TIERS[r.tierAt].label}
+                    <span class="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style="background: {CLASS_COLORS[tier]}"></span>
+                    {TIERS[tier].label}
                   </div>
-                  <div class="pl-4 text-[11px] tabular-nums text-slate-500">{fmtUsd(r.spendAt)}/mo</div>
+                  <div class="pl-4 text-[11px] tabular-nums text-slate-500">{fmtUsd(col.id === 'at' ? r.spendAt : r.spendNow)}/mo</div>
                 </td>
               {:else if tierCol(col.id)}
                 {@const t = Number(col.id[1])}
@@ -175,7 +211,16 @@
       </tbody>
     </table>
     {#if rows.length === 0}
-      <p class="p-6 text-center text-sm text-slate-500">No cities match these filters.</p>
+      <div class="space-y-2 p-6 text-center text-sm text-slate-500">
+        <p>No cities match these filters.</p>
+        {#if app.minTier > 0 && app.minTierWhen !== 'at'}
+          <button class="font-medium text-blue-600 hover:underline" onclick={() => (app.minTierWhen = 'at')}>
+            Try {TIERS[app.minTier].label.toLowerCase()} at {app.retireAge} instead
+          </button>
+        {:else if app.filtersActive > 0}
+          <button class="font-medium text-blue-600 hover:underline" onclick={() => app.clearFilters()}>Clear all filters</button>
+        {/if}
+      </div>
     {:else if rows.length > limit}
       <div class="p-4 text-center">
         <button class="rounded-lg border border-slate-300 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50" onclick={() => (limit += PAGE * 2)}>

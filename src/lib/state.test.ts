@@ -36,12 +36,12 @@ describe('URL hash state', () => {
   });
 
   it('ignores junk', () => {
-    readHash('#age=banana&only=atlantis,europe&city=nowhere&tier=99&into=mattress');
+    readHash('#age=banana&only=atlantis,europe&city=nowhere&tier=99&c-hsa=lots');
     expect(app.age).toBe(defaults.personas.fire.age);
     expect(app.only).toEqual(['europe']);
     expect(app.selectedCityId).toBeNull();
     expect(app.targetTier).toBe(5);
-    expect(app.savingsTo).toBe('traditional');
+    expect(app.contribInput.hsa).toBeUndefined();
   });
 
   it('retirement age follows the persona but never comes before today', () => {
@@ -69,16 +69,59 @@ describe('URL hash state', () => {
   });
 });
 
+describe('income, contributions, Social Security', () => {
+  it('default contributions follow income, and edited ones stick', () => {
+    readHash('');
+    const at = app.contributions.k401;
+    expect(at).toBe(Math.round((0.155 * app.householdIncome) / 100) * 100);
+    readHash('#inc1=200000&inc2=0');
+    expect(app.contributions.k401).toBe(Math.round((0.155 * 200_000) / 100) * 100);
+    readHash('#inc1=200000&inc2=0&c-k401=5000');
+    expect(app.contributions.k401).toBe(5000);
+    expect(app.contributions.match).toBe(Math.round((0.045 * 200_000) / 100) * 100);
+  });
+  it('Social Security is estimated from income until typed over', () => {
+    readHash('');
+    expect(app.socialSecurity).toBeGreaterThan(20_000);
+    const est = app.socialSecurity;
+    readHash('#at=60');
+    expect(app.socialSecurity).toBeGreaterThan(est); // more working years
+    readHash('#ss=12345');
+    expect(app.socialSecurity).toBe(12345);
+  });
+  it('maps v2.1 links (one savings number into one account)', () => {
+    readHash('#save=30000&into=brokerage');
+    expect(app.contributions.brokerage).toBe(30000);
+    expect(app.contributions.k401).toBe(0);
+    readHash('');
+  });
+});
+
+describe('lifestyle filter', () => {
+  it('"like a king today" keeps exactly the cities where king is reachable now', () => {
+    readHash('#nw=3000000&mintier=5&tierwhen=now');
+    const res = app.results; // read once: outside a component every read recomputes
+    const shown = cities.filter((c) => res.get(c.id)!.visible);
+    expect(shown.length).toBeGreaterThan(0);
+    expect(shown.every((c) => res.get(c.id)!.tierNow === 5)).toBe(true);
+    const hiddenKings = cities.filter((c) => !res.get(c.id)!.visible && res.get(c.id)!.tierNow === 5);
+    expect(hiddenKings).toEqual([]);
+    readHash('');
+  });
+});
+
 describe('place filters', () => {
   it('"only" keeps matching places; "never" wins over "only"', () => {
     readHash('#only=europe&never=c-pt');
-    const visible = cities.filter((c) => app.results.get(c.id)!.visible);
+    const res = app.results;
+    const visible = cities.filter((c) => res.get(c.id)!.visible);
     expect(visible.length).toBeGreaterThan(100);
     expect(visible.every((c) => c.places.includes('europe') && c.iso2 !== 'PT')).toBe(true);
   });
   it('excluding Africa and India removes every city there', () => {
     readHash('#never=africa,c-in');
-    const hidden = cities.filter((c) => !app.results.get(c.id)!.visible);
+    const res = app.results;
+    const hidden = cities.filter((c) => !res.get(c.id)!.visible);
     expect(hidden.every((c) => c.places.includes('africa') || c.iso2 === 'IN')).toBe(true);
     expect(hidden.length).toBe(cities.filter((c) => c.places.includes('africa') || c.iso2 === 'IN').length);
     readHash('');

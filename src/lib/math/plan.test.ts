@@ -117,40 +117,110 @@ describe('tiers', () => {
   });
 });
 
-import { project, blendedTax, yearsToRetireFrom, total } from './plan.ts';
-import type { AccountsPlan } from './plan.ts';
+import { project, blendedTax, yearsToRetireFrom, total, yearContribution } from './plan.ts';
+import type { AccountsPlan, Contributions, Limits } from './plan.ts';
+
+const L2026: Limits = {
+  k401: 24_500,
+  k401CatchUp50: 8_000,
+  k401CatchUp60to63: 11_250,
+  total415c: 72_000,
+  ira: 7_500,
+  iraCatchUp50: 1_100,
+  hsaSelf: 4_400,
+  hsaFamily: 8_750,
+  hsaCatchUp55: 1_000,
+};
+const none: Contributions = { k401: 0, roth401k: 0, match: 0, rothIra: 0, hsa: 0, brokerage: 0, cash: 0 };
+const zeroBuckets = { cash: 0, brokerage: 0, traditional: 0, roth: 0, hsa: 0 };
+
+describe('contribution caps', () => {
+  it('passes everything through under the caps', () => {
+    const y = yearContribution({ ...none, k401: 10_000, match: 4_000, rothIra: 7_000, hsa: 4_000, brokerage: 5_000, cash: 1_000 }, 1, 35, 1, L2026);
+    expect(y.add).toEqual({ traditional: 14_000, roth: 7_000, hsa: 4_000, brokerage: 5_000, cash: 1_000 });
+    expect(y.overflow).toBe(0);
+    expect(y.capped).toEqual([]);
+  });
+  it('shares the 401(k) deferral cap between traditional and Roth, spilling the rest to brokerage', () => {
+    const y = yearContribution({ ...none, k401: 30_000, roth401k: 10_000 }, 1, 35, 1, L2026);
+    expect(y.add.traditional + y.add.roth).toBeCloseTo(24_500, 9);
+    expect(y.add.traditional / y.add.roth).toBeCloseTo(3, 9); // keeps your mix
+    expect(y.add.brokerage).toBeCloseTo(15_500, 9);
+    expect(y.capped).toContain('k401');
+  });
+  it('doubles personal limits for a couple; HSA uses the family limit', () => {
+    const y = yearContribution({ ...none, k401: 60_000, rothIra: 20_000, hsa: 10_000 }, 1, 35, 2, L2026);
+    expect(y.add.traditional).toBeCloseTo(49_000, 9);
+    expect(y.add.roth).toBe(15_000);
+    expect(y.add.hsa).toBe(8_750);
+    expect(y.overflow).toBeCloseTo(11_000 + 5_000 + 1_250, 9);
+  });
+  it('adds catch-ups at 50, the bigger 401(k) catch-up at 60–63, and the HSA catch-up at 55', () => {
+    const want = { ...none, k401: 50_000, rothIra: 10_000, hsa: 10_000 };
+    expect(yearContribution(want, 1, 49, 1, L2026).add.traditional).toBe(24_500);
+    expect(yearContribution(want, 1, 50, 1, L2026).add.traditional).toBe(32_500);
+    expect(yearContribution(want, 1, 61, 1, L2026).add.traditional).toBe(35_750);
+    expect(yearContribution(want, 1, 64, 1, L2026).add.traditional).toBe(32_500);
+    expect(yearContribution(want, 1, 50, 1, L2026).add.roth).toBe(8_600);
+    expect(yearContribution(want, 1, 54, 1, L2026).add.hsa).toBe(4_400);
+    expect(yearContribution(want, 1, 55, 1, L2026).add.hsa).toBe(5_400);
+  });
+  it('caps the employer match at the §415(c) room left after your deferrals', () => {
+    const y = yearContribution({ ...none, k401: 24_500, match: 60_000 }, 1, 35, 1, L2026);
+    expect(y.add.traditional).toBe(72_000);
+    expect(y.capped).toContain('match');
+    expect(y.add.brokerage).toBe(0); // unpaid match isn't your money
+  });
+  it('scales every line by the growth factor before capping', () => {
+    const y = yearContribution({ ...none, k401: 20_000, brokerage: 10_000 }, 1.5, 35, 1, L2026);
+    expect(y.add.traditional).toBe(24_500);
+    expect(y.add.brokerage).toBe(15_000 + 5_500);
+    expect(y.wanted).toBe(45_000);
+  });
+});
 
 describe('accounts', () => {
   const plan: AccountsPlan = {
     age: 40,
-    buckets: { cash: 10_000, brokerage: 50_000, traditional: 100_000, roth: 40_000 },
-    annualSavings: 10_000,
-    savingsTo: 'traditional',
+    buckets: { cash: 10_000, brokerage: 50_000, traditional: 100_000, roth: 40_000, hsa: 0 },
+    contributions: { ...none, k401: 10_000 },
+    contributionGrowth: 0,
+    adults: 1,
+    limits: L2026,
     realReturn: 0.05,
     cashReturn: 0,
     tax: { traditional: 0.1, brokerage: 0.02 },
   };
-  it('blends tax by balance; cash and Roth are untaxed', () => {
+  it('blends tax by balance; cash, Roth and HSA are untaxed', () => {
     expect(blendedTax(plan.buckets, plan.tax)).toBeCloseTo((100_000 * 0.1 + 50_000 * 0.02) / 200_000, 12);
-    expect(blendedTax({ cash: 0, brokerage: 0, traditional: 0, roth: 0 }, plan.tax)).toBe(0.1);
+    expect(blendedTax(zeroBuckets, plan.tax)).toBe(0.1);
+    expect(blendedTax({ ...zeroBuckets, hsa: 100, traditional: 100 }, plan.tax)).toBeCloseTo(0.05, 12);
   });
-  it('grows invested accounts at the real return, cash at the cash return, and adds savings at year end', () => {
+  it('grows invested accounts at the real return, cash at the cash return, and adds contributions at year end', () => {
     const p = project(plan, 2);
     expect(p[0].portfolio).toBe(200_000);
     expect(p[1].buckets.cash).toBe(10_000);
     expect(p[1].buckets.roth).toBeCloseTo(42_000, 9);
     expect(p[1].buckets.traditional).toBeCloseTo(115_000, 9);
+    expect(p[1].contributed).toBe(10_000);
     expect(p[2].age).toBe(42);
-    expect(p[1].portfolio).toBeCloseTo(total(p[1].buckets), 9);
   });
-  it('matches the single-portfolio projection when everything is invested', () => {
-    const simple: AccountsPlan = { ...plan, buckets: { cash: 0, brokerage: 0, traditional: 200_000, roth: 0 } };
-    const p = project(simple, 10);
-    expect(p[10].portfolio).toBeCloseTo(portfolioAfter({ age: 40, portfolio: 200_000, annualSavings: 10_000, realReturn: 0.05 }, 10), 6);
+  it('matches the single-portfolio projection when everything is invested and flat', () => {
+    const simple: AccountsPlan = { ...plan, buckets: { ...zeroBuckets, traditional: 200_000 } };
+    expect(project(simple, 10)[10].portfolio).toBeCloseTo(portfolioAfter({ age: 40, portfolio: 200_000, annualSavings: 10_000, realReturn: 0.05 }, 10), 6);
+  });
+  it('raises contributions each year until they hit the cap', () => {
+    const growing: AccountsPlan = { ...plan, buckets: zeroBuckets, contributions: { ...none, k401: 20_000 }, contributionGrowth: 0.1, realReturn: 0 };
+    const p = project(growing, 4);
+    expect(p[1].contributed).toBe(20_000);
+    expect(p[2].contributed).toBeCloseTo(42_000, 9);
+    expect(p[3].buckets.traditional).toBeCloseTo(20_000 + 22_000 + 24_200, 9);
+    expect(p[4].buckets.traditional).toBeCloseTo(20_000 + 22_000 + 24_200 + 24_500, 9); // 26,620 capped
+    expect(p[4].buckets.brokerage).toBeCloseTo(2_120, 9);
   });
   it('yearsToRetireFrom uses each year’s own tax blend', () => {
-    const roth: AccountsPlan = { ...plan, buckets: { cash: 0, brokerage: 0, traditional: 0, roth: 500_000 }, annualSavings: 0, savingsTo: 'roth' };
-    const trad: AccountsPlan = { ...roth, buckets: { cash: 0, brokerage: 0, traditional: 500_000, roth: 0 }, savingsTo: 'traditional' };
+    const roth: AccountsPlan = { ...plan, buckets: { ...zeroBuckets, roth: 500_000 }, contributions: none };
+    const trad: AccountsPlan = { ...roth, buckets: { ...zeroBuckets, traditional: 500_000 } };
     const a = flat4();
     const yr = yearsToRetireFrom(1700, noHealth, project(roth, 30), a)!;
     const yt = yearsToRetireFrom(1700, noHealth, project(trad, 30), a)!;

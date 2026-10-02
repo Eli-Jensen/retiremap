@@ -37,9 +37,54 @@
     {/if}
   </div>
 
+  <div class="flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+    <span>Only show where I could live</span>
+    <select
+      aria-label="Minimum lifestyle"
+      class="rounded-md border px-1.5 py-1 text-xs {app.minTier > 0 ? 'border-blue-400 bg-blue-50 font-medium text-blue-900' : 'border-slate-300 bg-white'}"
+      value={String(app.minTier)}
+      onchange={(e) => (app.minTier = Number(e.currentTarget.value))}
+    >
+      <option value="0">any way at all</option>
+      {#each TIERS.slice(1) as t, i (t.id)}
+        <option value={String(i + 1)}>{i + 1 === TIERS.length - 1 ? t.label.toLowerCase() : `at least ${t.label.toLowerCase()}`}</option>
+      {/each}
+    </select>
+    {#if app.minTier > 0}
+      <select
+        aria-label="When"
+        class="rounded-md border border-blue-400 bg-blue-50 px-1.5 py-1 text-xs font-medium text-blue-900"
+        value={app.minTierWhen}
+        onchange={(e) => (app.minTierWhen = e.currentTarget.value as typeof app.minTierWhen)}
+      >
+        <option value="now">today</option>
+        <option value="at">at {app.retireAge}</option>
+        <option value="by">by age…</option>
+      </select>
+      {#if app.minTierWhen === 'by'}
+        <input
+          type="number"
+          aria-label="By age"
+          min={app.age}
+          max="100"
+          class="w-14 rounded-md border border-blue-400 bg-blue-50 px-1.5 py-1 text-xs tabular-nums text-blue-900"
+          value={app.minTierByAge}
+          oninput={(e) => {
+            const n = Number(e.currentTarget.value);
+            if (n >= 18 && n <= 100) app.minTierByAge = Math.round(n);
+          }}
+        />
+      {/if}
+      <button class="text-slate-400 hover:text-slate-700" aria-label="Remove lifestyle filter" onclick={() => (app.minTier = 0)}>✕</button>
+    {/if}
+  </div>
+
   <p class="text-sm leading-snug text-slate-700" aria-live="polite">
     {#if s.shown === 0}
       No cities match your filters.
+      {#if app.minTier > 0 && app.minTierWhen !== 'at'}
+        <button class="font-medium text-blue-600 hover:underline" onclick={() => (app.minTierWhen = 'at')}>Try at {app.retireAge} →</button>
+      {/if}
     {:else if app.mode === 'at'}
       {#if s.retirable === 0}
         Retiring {when} with {fmtUsdCompact(app.atRetirement.portfolio)} isn't enough in any of these {s.shown} cities.

@@ -14,12 +14,16 @@
       { input: 'Who', value: `${p.age}, ${p.household}, retire at ${p.retireAge}`, note: p.notes.who, src: [] },
       { input: '401(k) / IRA · brokerage', value: `${at(p.retirementByAge)} · ${at(p.brokerageByAge)}`, note: p.notes.invested, src: [] },
       { input: 'Checking', value: at(p.cashByAge), note: p.notes.cash, src: [] },
-      { input: 'Adding per year', value: k(p.annualSavings), note: p.notes.savings, src: [] },
+      { input: 'Income', value: p.income.partner > 0 ? `${k(p.income.you)} + ${k(p.income.partner)}` : k(p.income.you), note: p.notes.income, src: [] },
+      { input: 'Saving per year', value: `${Math.round(Object.values(p.contributionPct).reduce((a, b) => a + b, 0) * 100)}% of income`, note: p.notes.savings, src: [] },
       { input: 'Stocks', value: `${p.stockPct}%`, note: p.notes.stocks, src: [] },
     ];
   };
   const shared: Row[] = [
-    { input: 'Social Security', value: `$${defaults.socialSecurity.single.toLocaleString()} / $${defaults.socialSecurity.couple.toLocaleString()} from ${defaults.socialSecurity.startAge}`, note: defaults.socialSecurity.note, src: ['ssa'] },
+    { input: 'Social Security', value: `from income, at ${defaults.socialSecurity.startAge}`, note: defaults.socialSecurity.estimateNote, src: ['ssaBend', 'ssaCbb'] },
+    { input: 'Started working', value: `age ${defaults.careerStartAge.value}`, note: defaults.careerStartAge.note, src: [] },
+    { input: 'Contribution limits', value: `$${(defaults.limits.k401 / 1000).toFixed(1)}k 401(k) · $${(defaults.limits.ira / 1000).toFixed(1)}k IRA · $${(defaults.limits.hsaSelf / 1000).toFixed(1)}k/$${(defaults.limits.hsaFamily / 1000).toFixed(2)}k HSA`, note: defaults.limits.note, src: defaults.limits.sources },
+    { input: 'Raises', value: fmtPct(defaults.contributionGrowth.value, 2) + '/yr real', note: defaults.contributionGrowth.note, src: ['ssaTrustees'] },
     { input: 'Plan to age', value: String(defaults.planToAge.value), note: defaults.planToAge.note, src: ['ssaLife'] },
     { input: 'Tax on 401(k)/IRA withdrawals', value: fmtPct(defaults.taxRate.value, 0), note: defaults.taxRate.note, src: ['irs'] },
     { input: 'Tax on brokerage withdrawals', value: fmtPct(defaults.brokerageTax.value, 0), note: defaults.brokerageTax.note, src: ['irs'] },

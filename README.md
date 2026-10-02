@@ -1,8 +1,9 @@
 # RetireMap 🌍
 
 A static web app that answers: **where — and when — could you retire, and at
-what level?** Enter your age, the age you want to retire, your accounts
-(checking, savings, brokerage, 401(k)/IRA, Roth), yearly saving, and
+what level?** Enter your age, the age you want to retire, your income, your
+balances (checking, savings, brokerage, traditional 401(k)/IRA, Roth
+401(k)/Roth IRA, HSA), what you put into each account this year, and other
 retirement income; every one of 555 cities is rated by the lifestyle you
 could afford there, measured against what locals earn:
 
@@ -71,8 +72,18 @@ npm run deploy     # build + firebase deploy --only hosting (project retiremap-e
   horizon (the raw 5th percentile turns up past ~57 years as the 1960s–70s
   cohorts drop out).
 - **Accounts**: invested accounts grow at the historical real CAGR of the
-  stock/bond mix, checking/savings at 0% real; yearly saving goes into the
-  account you pick. Withdrawals are pro rata, so the tax gross-up is a
+  stock/bond mix, checking/savings at 0% real.
+- **Contributions** (`yearContribution` in `plan.ts`): this year's amount per
+  account (traditional 401(k), Roth 401(k), employer match, Roth IRA, HSA,
+  brokerage, cash), raised each year by real wage growth (SSA Trustees 2026:
+  1.76%/yr), capped by the 2026 IRS limits — flat in real terms since they're
+  inflation-indexed — with catch-ups at 50/55/60–63; per-adult 401(k)/IRA
+  limits, family HSA limit; anything over a cap spills into brokerage.
+  Defaults are the persona's share of income, clipped to the caps.
+- **Social Security** (`socialSecurity.ts`): SSA's formula on your income(s) —
+  taxable max $184,500, 35-year average (zero years before you start and after
+  you retire), 90/32/15% bend points ($1,286 / $7,749), early/delayed claiming
+  factors, spousal 50%. Typing a benefit overrides it. Withdrawals are pro rata, so the tax gross-up is a
   balance-weighted blend (401(k)/IRA rate, brokerage rate, 0 for Roth/cash).
 - **When**: per city and tier, the first year the projection covers the need.
 - **Health**: per person, outside the US international-plan broker quotes
@@ -134,12 +145,17 @@ once or twice a year:
    hidden entirely when filtered out.
 3. Place filter: type "India" → Never, "Africa" → Never → 500 cities, none in
    Africa or India; chips show struck through; "Clear all filters" resets.
-4. List: one column per tier (age you'd reach it, bold when ≤ your retire
-   age), Columns ▾ adds QoL/safety/…; header click sorts both ways.
-5. Reload with a bare URL → everything you entered comes back. Open a link
+4. List: Today + At-your-age + one column per tier (age you'd reach it, bold
+   when ≤ your retire age), Columns ▾ adds QoL/safety/…; sort dropdown or
+   header click, with a high→low toggle; the sorted column sits next to the
+   city. "Only show where I could live like a king · today" + sort QoL with
+   $3M saved → Antalya, Querétaro, Cuenca… (153 cities).
+5. Saving this year: defaults never exceed IRS caps (no amber warning); type
+   $40k into Traditional 401(k) as a single → warning, overflow to brokerage.
+6. Reload with a bare URL → everything you entered comes back. Open a link
    with a different plan → amber "shared plan" banner, your saved plan
    untouched until you edit; "Switch to my plan" restores it.
-6. 375 px wide: list default, inputs collapse to a summary (shows filter
+7. 375 px wide: list default, inputs collapse to a summary (shows filter
    count), table scrolls sideways with the city column pinned, no page-level
    horizontal scroll.
 

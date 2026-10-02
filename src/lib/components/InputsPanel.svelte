@@ -1,16 +1,37 @@
 <script lang="ts">
-  import { app, defaults, fmtPct, fmtUsdCompact, BRIDGE_RATE, readHash, PERSONAS } from '../state.svelte.ts';
-  import type { BucketKey } from '../math/plan.ts';
+  import { app, defaults, fmtPct, fmtUsd, fmtUsdCompact, BRIDGE_RATE, LIMITS, readHash, PERSONAS } from '../state.svelte.ts';
+  import { yearContribution } from '../math/plan.ts';
+  import type { ContribKey } from '../math/plan.ts';
   import MoneyInput from './MoneyInput.svelte';
 
   const swrAt = $derived(app.assumptions.swr(app.planToAge - app.retireAge));
   const zeroIsDefault = (n: number) => (n === 0 ? null : n);
-  const intoOptions: { key: BucketKey; label: string }[] = [
-    { key: 'traditional', label: '401(k) / IRA' },
-    { key: 'roth', label: 'Roth' },
-    { key: 'brokerage', label: 'Brokerage' },
-    { key: 'cash', label: 'Savings' },
+  const L = LIMITS;
+
+  const caps = $derived(app.caps);
+  const each = $derived(app.persons > 1 ? ' for both' : '');
+  const contribRows: { key: ContribKey; label: string; hint: () => string }[] = [
+    { key: 'k401', label: 'Traditional 401(k)', hint: () => `max ${fmtUsdCompact(caps.k401)}${each} with Roth 401(k)` },
+    { key: 'roth401k', label: 'Roth 401(k)', hint: () => 'shares the 401(k) limit' },
+    { key: 'match', label: 'Employer match', hint: () => 'into the 401(k)' },
+    { key: 'rothIra', label: 'Roth IRA', hint: () => `max ${fmtUsdCompact(caps.ira)}${each}` },
+    { key: 'hsa', label: 'HSA', hint: () => `max ${fmtUsdCompact(caps.hsa)}${app.persons > 1 ? ' family' : ''}` },
+    { key: 'brokerage', label: 'Brokerage', hint: () => 'no limit' },
+    { key: 'cash', label: 'Savings / cash', hint: () => 'no limit' },
   ];
+  const yearsSaving = $derived(Math.max(0, app.retireAge - app.age));
+  // The last year you contribute, after raises and caps.
+  const lastYear = $derived(
+    yearsSaving > 0
+      ? yearContribution(app.contributions, Math.pow(1 + app.contributionGrowth, yearsSaving - 1), app.retireAge - 1, app.persons, L)
+      : null,
+  );
+  function setContrib(k: ContribKey, v: number | null) {
+    const next = { ...app.contribInput };
+    if (v === null) delete next[k];
+    else next[k] = v;
+    app.contribInput = next;
+  }
 
   function ageInput(e: Event & { currentTarget: HTMLInputElement }, lo: number, hi: number, set: (n: number) => void) {
     const n = Number(e.currentTarget.value);
@@ -78,6 +99,12 @@
       <button class="ml-1 text-blue-600 hover:underline" onclick={() => (app.retireAgeInput = null)}>reset to typical</button>
     {/if}
   </p>
+  <div class="grid {app.household === 'couple' ? 'grid-cols-2' : 'grid-cols-1'} gap-2">
+    <MoneyInput id="income" label={app.household === 'couple' ? 'Your income' : 'Income (gross)'} value={app.incomeInput} fallback={app.income} hint="typical" suffix="/yr" onchange={(v) => (app.incomeInput = v)} />
+    {#if app.household === 'couple'}
+      <MoneyInput id="income2" label="Partner's income" value={app.partnerIncomeInput} fallback={app.partnerIncome} hint="typical" suffix="/yr" onchange={(v) => (app.partnerIncomeInput = v)} />
+    {/if}
+  </div>
 </section>
 
 <section class="space-y-3">
@@ -88,46 +115,97 @@
   <div class="grid grid-cols-2 gap-x-2 gap-y-3">
     <MoneyInput id="checking" label="Checking" value={app.checkingInput} fallback={app.checking} hint="typical" onchange={(v) => (app.checkingInput = v)} />
     <MoneyInput id="savings-acct" label="Savings / CDs" value={zeroIsDefault(app.savingsAcct)} fallback={0} onchange={(v) => (app.savingsAcct = v ?? 0)} />
-    <MoneyInput id="trad" label="401(k) / IRA" value={app.traditionalInput} fallback={app.traditional} hint="typical" onchange={(v) => (app.traditionalInput = v)} />
-    <MoneyInput id="roth" label="Roth 401(k) / IRA" value={zeroIsDefault(app.roth)} fallback={0} onchange={(v) => (app.roth = v ?? 0)} />
+    <MoneyInput id="trad" label="Traditional 401(k) / IRA" value={app.traditionalInput} fallback={app.traditional} hint="typical" onchange={(v) => (app.traditionalInput = v)} />
+    <MoneyInput id="roth" label="Roth 401(k) / Roth IRA" value={zeroIsDefault(app.roth)} fallback={0} onchange={(v) => (app.roth = v ?? 0)} />
     <MoneyInput id="brokerage" label="Brokerage" value={app.brokerageInput} fallback={app.brokerage} hint="typical" onchange={(v) => (app.brokerageInput = v)} />
+    <MoneyInput id="hsa-bal" label="HSA" value={zeroIsDefault(app.hsaBalance)} fallback={0} onchange={(v) => (app.hsaBalance = v ?? 0)} />
   </div>
   <p class="text-[11px] text-slate-400">
-    Pre-tax 401(k)/IRA money is taxed when you withdraw it; Roth and cash aren't. Checking and savings earn nothing after
-    inflation until you retire.
+    Traditional money is taxed when you withdraw it; Roth, HSA (for medical costs) and cash aren't. Checking and savings earn
+    nothing after inflation until you retire.
   </p>
+</section>
 
-  <div class="grid grid-cols-[1fr_8.5rem] items-end gap-2">
-    <MoneyInput
-      id="savings"
-      label="Adding per year"
-      value={app.savingsInput}
-      fallback={app.annualSavings}
-      hint="typical"
-      suffix="/yr"
-      onchange={(v) => (app.savingsInput = v)}
-    />
-    <label class="space-y-1">
-      <span class="text-xs font-medium text-slate-600">into</span>
-      <select class="{field} px-2" value={app.savingsTo} onchange={(e) => (app.savingsToInput = e.currentTarget.value as BucketKey)}>
-        {#each intoOptions as o (o.key)}
-          <option value={o.key}>{o.label}</option>
-        {/each}
-      </select>
-    </label>
+<section class="space-y-3">
+  <div class="flex items-baseline justify-between">
+    <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Saving this year</h2>
+    <span class="text-xs tabular-nums text-slate-500">
+      total <b class="text-slate-800">{fmtUsdCompact(app.thisYear.wanted)}</b>
+      <span class="text-slate-400">· {app.householdIncome > 0 ? fmtPct(app.thisYear.wanted / app.householdIncome, 0) : '—'} of income</span>
+    </span>
   </div>
+  <div class="grid grid-cols-2 gap-x-2 gap-y-3">
+    {#each contribRows as row (row.key)}
+      <MoneyInput
+        id="c-{row.key}"
+        label={row.label}
+        value={app.contribInput[row.key] ?? null}
+        fallback={app.contributions[row.key]}
+        hint={row.hint()}
+        suffix="/yr"
+        onchange={(v) => setContrib(row.key, v)}
+      />
+    {/each}
+  </div>
+  {#if app.thisYear.overflow > 0}
+    <p class="rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-900">
+      {fmtUsd(app.thisYear.overflow)} is over this year's IRS limits, so it goes to brokerage instead.
+    </p>
+  {/if}
+  <label class="block space-y-1 text-xs text-slate-600">
+    <span class="flex justify-between">
+      <span>Raise contributions each year by</span>
+      <b class="tabular-nums">{fmtPct(app.contributionGrowth, 1)} after inflation</b>
+    </span>
+    <input type="range" min="0" max="0.06" step="0.0025" class="w-full accent-blue-600" value={app.contributionGrowth} oninput={(e) => (app.growthInput = Number(e.currentTarget.value))} />
+    <span class="block text-[11px] text-slate-400">
+      {#if app.growthInput === null}Typical real wage growth (SSA).{:else}<button class="text-blue-600 hover:underline" onclick={() => (app.growthInput = null)}>reset to typical ({fmtPct(defaults.contributionGrowth.value, 1)})</button>{/if}
+      {#if lastYear}
+        By your last working year (age {app.retireAge - 1}) that's {fmtUsdCompact(lastYear.wanted)}/yr{#if lastYear.overflow > 0}, {fmtUsdCompact(lastYear.overflow)} of it over the caps and into brokerage{/if}.
+        IRS limits rise with inflation, so they're flat in today's dollars.
+      {:else}
+        You're retiring now, so nothing more goes in.
+      {/if}
+    </span>
+  </label>
 </section>
 
 <section class="space-y-3">
   <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Income in retirement</h2>
-  <div class="grid grid-cols-[1fr_5.5rem] items-end gap-2">
-    <MoneyInput id="ss" label="Social Security" value={app.ssInput} fallback={app.socialSecurity} hint="US average" suffix="/yr" onchange={(v) => (app.ssInput = v)} />
+  <div class="grid grid-cols-[1fr_5.5rem] items-start gap-2">
+    <MoneyInput
+      id="ss"
+      label="Social Security"
+      value={app.ssInput}
+      fallback={app.socialSecurity}
+      hint="estimated from income"
+      suffix="/yr"
+      onchange={(v) => (app.ssInput = v)}
+    />
     <label class="space-y-1">
       <span class="text-xs font-medium text-slate-600">from age</span>
-      <input type="number" min="62" max="70" class={field} value={app.ssStartAge} oninput={(e) => ageInput(e, 50, 75, (n) => (app.ssStartAge = n))} />
+      <input type="number" min="62" max="70" class={field} value={app.ssStartAge} oninput={(e) => ageInput(e, 62, 70, (n) => (app.ssStartAge = n))} />
     </label>
   </div>
-  <div class="grid grid-cols-[1fr_5.5rem] items-end gap-2">
+  <p class="-mt-1 text-[11px] text-slate-400">
+    {#if app.ssInput === null}
+      SSA formula on {app.household === 'couple' ? 'your incomes' : 'your income'}, {Math.max(0, app.retireAge - app.careerStart)} years worked
+      (from age
+      <input
+        type="number"
+        min="14"
+        max="70"
+        aria-label="Started working at age"
+        class="w-10 rounded border border-slate-200 px-0.5 text-center text-[11px] tabular-nums"
+        value={app.careerStart}
+        oninput={(e) => ageInput(e, 14, 70, (n) => (app.careerStartInput = n))}
+      />
+      to {app.retireAge}), out of 35 counted. Your SSA statement is better — type it in.
+    {:else}
+      <button class="text-blue-600 hover:underline" onclick={() => (app.ssInput = null)}>use the estimate from income ({fmtUsd(app.socialSecurityEstimate)})</button>
+    {/if}
+  </p>
+  <div class="grid grid-cols-[1fr_5.5rem] items-start gap-2">
     <MoneyInput id="other" label="Pension / rental / other" value={zeroIsDefault(app.otherIncome)} fallback={0} suffix="/yr" onchange={(v) => (app.otherIncome = v ?? 0)} />
     <label class="space-y-1">
       <span class="text-xs font-medium text-slate-600">from age</span>

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { app, cities, places, placeById, flagEmoji } from '../state.svelte.ts';
   import type { Place } from '../types.ts';
-  import { TIERS } from '../math/tiers.ts';
 
   let query = $state('');
   let focused = $state(false);
@@ -155,15 +154,7 @@
           {/each}
         </div>
       </div>
-      <label class="flex items-center justify-between gap-2">
-        <span>At {app.retireAge}, I'd live at least</span>
-        <select class="rounded-md border border-slate-300 bg-white px-2 py-1" value={String(app.minTierAt)} onchange={(e) => (app.minTierAt = Number(e.currentTarget.value))}>
-          <option value="0">anything</option>
-          {#each TIERS.slice(1) as t, i (t.id)}
-            <option value={String(i + 1)}>{t.label.toLowerCase()}</option>
-          {/each}
-        </select>
-      </label>
+
     </div>
   </details>
 </section>

@@ -107,27 +107,113 @@ export function affordableMonthly(
 
 // --- accounts ---
 
-export type Buckets = { cash: number; brokerage: number; traditional: number; roth: number };
+export type Buckets = { cash: number; brokerage: number; traditional: number; roth: number; hsa: number };
 export type BucketKey = keyof Buckets;
+
+/** What you put in each year, by where it goes. */
+export type ContribKey = 'k401' | 'roth401k' | 'match' | 'rothIra' | 'hsa' | 'brokerage' | 'cash';
+export type Contributions = Record<ContribKey, number>;
+export const CONTRIB_KEYS: ContribKey[] = ['k401', 'roth401k', 'match', 'rothIra', 'hsa', 'brokerage', 'cash'];
+
+/** IRS annual limits (inflation-indexed, so flat in today's dollars). */
+export type Limits = {
+  k401: number; // employee deferral, traditional + Roth 401(k) combined
+  k401CatchUp50: number;
+  k401CatchUp60to63: number; // replaces the 50+ catch-up at 60–63
+  total415c: number; // employee + employer, excluding catch-ups
+  ira: number;
+  iraCatchUp50: number;
+  hsaSelf: number;
+  hsaFamily: number;
+  hsaCatchUp55: number;
+};
 
 export type AccountsPlan = {
   age: number;
   buckets: Buckets;
-  annualSavings: number; // real $/yr added at each year end until retirement
-  savingsTo: BucketKey;
+  contributions: Contributions; // this year's amounts, real $
+  contributionGrowth: number; // real growth per year (raises), fraction
+  adults: number; // 1 or 2: each adult gets their own 401(k)/IRA limit
+  limits: Limits;
   realReturn: number; // invested accounts
   cashReturn: number; // checking & savings
-  tax: { traditional: number; brokerage: number }; // effective rates on withdrawals; cash and Roth are 0
+  tax: { traditional: number; brokerage: number }; // effective rates on withdrawals; cash, Roth, HSA are 0
 };
 
-/** One row per whole year from now: what you'd have if you retired then. */
-export type ProjectionYear = { age: number; buckets: Buckets; portfolio: number; taxRate: number };
+export type YearContribution = {
+  add: Buckets;
+  wanted: number; // total you'd like to put in this year
+  overflow: number; // pushed from capped accounts into brokerage
+  capped: ContribKey[];
+};
 
-export function total(b: Buckets): number {
-  return b.cash + b.brokerage + b.traditional + b.roth;
+/**
+ * One year's contributions at `age`, `scale` × this year's amounts. Anything
+ * above an IRS cap goes to the taxable brokerage account instead — what a
+ * saver who maxes out actually does. Employer match above the §415(c) room
+ * simply isn't paid.
+ */
+export function yearContribution(c: Contributions, scale: number, age: number, adults: number, L: Limits): YearContribution {
+  const capped: ContribKey[] = [];
+  let overflow = 0;
+
+  const deferralCap = adults * (L.k401 + (age >= 60 && age <= 63 ? L.k401CatchUp60to63 : age >= 50 ? L.k401CatchUp50 : 0));
+  const wantK = c.k401 * scale;
+  const wantR = c.roth401k * scale;
+  const f = wantK + wantR > deferralCap ? deferralCap / (wantK + wantR) : 1;
+  if (f < 1) {
+    capped.push('k401', 'roth401k');
+    overflow += (wantK + wantR) * (1 - f);
+  }
+  const k401 = wantK * f;
+  const roth401k = wantR * f;
+
+  const matchRoom = Math.max(0, adults * L.total415c - (k401 + roth401k));
+  const wantMatch = c.match * scale;
+  const match = Math.min(wantMatch, matchRoom);
+  if (match < wantMatch) capped.push('match');
+
+  const iraCap = adults * (L.ira + (age >= 50 ? L.iraCatchUp50 : 0));
+  const wantIra = c.rothIra * scale;
+  const rothIra = Math.min(wantIra, iraCap);
+  if (rothIra < wantIra) {
+    capped.push('rothIra');
+    overflow += wantIra - rothIra;
+  }
+
+  const hsaCap = (adults > 1 ? L.hsaFamily : L.hsaSelf) + (age >= 55 ? adults * L.hsaCatchUp55 : 0);
+  const wantHsa = c.hsa * scale;
+  const hsa = Math.min(wantHsa, hsaCap);
+  if (hsa < wantHsa) {
+    capped.push('hsa');
+    overflow += wantHsa - hsa;
+  }
+
+  return {
+    add: {
+      traditional: k401 + match,
+      roth: roth401k + rothIra,
+      hsa,
+      brokerage: c.brokerage * scale + overflow,
+      cash: c.cash * scale,
+    },
+    wanted: CONTRIB_KEYS.reduce((sum, k) => sum + c[k] * scale, 0),
+    overflow,
+    capped,
+  };
 }
 
-/** Effective withdrawal tax when every account is drawn down pro rata. */
+/** One row per whole year from now: what you'd have if you retired then. */
+export type ProjectionYear = { age: number; buckets: Buckets; portfolio: number; taxRate: number; contributed: number };
+
+export function total(b: Buckets): number {
+  return b.cash + b.brokerage + b.traditional + b.roth + b.hsa;
+}
+
+/**
+ * Effective withdrawal tax when every account is drawn down pro rata. HSA
+ * money is assumed to go to qualified medical costs (tax-free).
+ */
 export function blendedTax(b: Buckets, tax: AccountsPlan['tax']): number {
   const t = total(b);
   return t > 0 ? (b.traditional * tax.traditional + b.brokerage * tax.brokerage) / t : tax.traditional;
@@ -136,16 +222,19 @@ export function blendedTax(b: Buckets, tax: AccountsPlan['tax']): number {
 export function project(p: AccountsPlan, years: number): ProjectionYear[] {
   const out: ProjectionYear[] = [];
   let b = { ...p.buckets };
+  let contributed = 0;
   for (let n = 0; n <= years; n++) {
-    out.push({ age: p.age + n, buckets: b, portfolio: total(b), taxRate: blendedTax(b, p.tax) });
+    out.push({ age: p.age + n, buckets: b, portfolio: total(b), taxRate: blendedTax(b, p.tax), contributed });
     const g = 1 + p.realReturn;
+    const y = yearContribution(p.contributions, Math.pow(1 + p.contributionGrowth, n), p.age + n, p.adults, p.limits);
     b = {
-      cash: b.cash * (1 + p.cashReturn),
-      brokerage: b.brokerage * g,
-      traditional: b.traditional * g,
-      roth: b.roth * g,
+      cash: b.cash * (1 + p.cashReturn) + y.add.cash,
+      brokerage: b.brokerage * g + y.add.brokerage,
+      traditional: b.traditional * g + y.add.traditional,
+      roth: b.roth * g + y.add.roth,
+      hsa: b.hsa * g + y.add.hsa,
     };
-    b[p.savingsTo] += p.annualSavings;
+    contributed += total(y.add);
   }
   return out;
 }

@@ -43,7 +43,8 @@
     "couple": 38496,
     "startAge": 67,
     "note": "Average retired-worker benefit $2,070/mo; aged couple both receiving $3,208/mo (SSA 2026 COLA fact sheet). Full retirement age 67 for anyone born 1960 or later.",
-    "source": "ssa"
+    "source": "ssa",
+    "estimateNote": "Estimated with SSA's benefit formula in today's dollars: earnings capped at the $184,500 taxable maximum, averaged over 35 years (years before you start working and after you retire count as zero), then 90%/32%/15% across the 2026 bend points ($1,286 and $7,749 a month), adjusted for your claiming age; a spouse gets the larger of their own benefit or half the other's. Your SSA statement is the real number."
   },
   "otherIncome": {
     "value": 0,
@@ -168,6 +169,26 @@
     "rfi2025": {
       "label": "r/financialindependence, 2025 Survey results (cross-check)",
       "url": "https://old.reddit.com/r/financialindependence/comments/1tlwxf3/the_2025_survey_results_are_here/"
+    },
+    "irsRetirement": {
+      "label": "IRS, 401(k) limit increases to $24,500 for 2026, IRA limit to $7,500",
+      "url": "https://www.irs.gov/newsroom/401k-limit-increases-to-24500-for-2026-ira-limit-increases-to-7500"
+    },
+    "irsHsa": {
+      "label": "IRS Rev. Proc. 2025-19 (2026 HSA limits)",
+      "url": "https://www.irs.gov/pub/irs-drop/rp-25-19.pdf"
+    },
+    "ssaBend": {
+      "label": "SSA, benefit formula bend points",
+      "url": "https://www.ssa.gov/oact/cola/bendpoints.html"
+    },
+    "ssaCbb": {
+      "label": "SSA, contribution and benefit base",
+      "url": "https://www.ssa.gov/oact/cola/cbb.html"
+    },
+    "ssaTrustees": {
+      "label": "Social Security Trustees Report 2026, economic assumptions",
+      "url": "https://www.ssa.gov/OACT/TR/2026/V_B_econ.html"
     }
   },
   "cashByAge": {
@@ -227,8 +248,6 @@
       "household": "couple",
       "retireAge": 48,
       "stockPct": 90,
-      "annualSavings": 101000,
-      "savingsTo": "traditional",
       "cashByAge": [
         {
           "maxAge": 200,
@@ -283,14 +302,28 @@
         "who": "Official r/financialindependence 2023 survey, USD respondents not yet FI (n=1,071): median age bracket 31-35, target retirement age bracket 46-50, 55% married with 50% two-earner households. The 2025 survey (n=793) gives the same age, target-age and savings-rate medians.",
         "invested": "Median retirement + taxable brokerage balance by age bracket (26-30 $291k, 31-35 $524k, 36-40 $770k, 41-45 $835k in 2023 dollars, x1.0966 CPI-U to Aug 2026), split 72% retirement accounts / 28% taxable (respondents' median retirement share). The survey doesn't split traditional from Roth, so retirement money is treated as traditional. 46+ uses the 41-45 figure.",
         "cash": "Median cash holdings, $35k in 2023 dollars.",
-        "savings": "Median dollars saved per year, $92k in 2023 dollars (46% of gross household income).",
-        "stocks": "No FIRE survey asks about allocation; 90% is the median equity share of 401(k) participants aged 35-44 (Vanguard How America Saves 2026)."
+        "savings": "Respondents save 46% of gross income. Couples put 67% of it in tax-advantaged accounts (2025 survey: same); employer match is about 4.5% of pay when offered. The survey doesn't split traditional/Roth or IRA/HSA, so the default fills a backdoor Roth IRA and the family HSA (about 6.9% and 4% of income) and puts the rest of the tax-advantaged share in traditional 401(k)s (15.5%); the remainder goes 80/20 to brokerage (12.2%) and cash (3%).",
+        "stocks": "No FIRE survey asks about allocation; 90% is the median equity share of 401(k) participants aged 35-44 (Vanguard How America Saves 2026).",
+        "income": "Median gross household income $200k (2023 dollars; $219k today), split evenly between two earners (half of respondents' households have two)."
       },
       "sources": [
         "rfi2023",
         "rfi2025",
         "vanguard"
-      ]
+      ],
+      "income": {
+        "you": 109700,
+        "partner": 109700
+      },
+      "contributionPct": {
+        "k401": 0.155,
+        "roth401k": 0,
+        "match": 0.045,
+        "rothIra": 0.0685,
+        "hsa": 0.04,
+        "brokerage": 0.122,
+        "cash": 0.0305
+      }
     },
     "typical": {
       "label": "Typical American",
@@ -299,8 +332,6 @@
       "household": "single",
       "retireAge": 66,
       "stockPct": 75,
-      "annualSavings": 10500,
-      "savingsTo": "traditional",
       "cashByAge": [
         {
           "maxAge": 34,
@@ -363,15 +394,54 @@
         "who": "A single 45-year-old planning to retire at 66 (Gallup, May 2026).",
         "invested": "Median retirement-account balance (IRA/401k/403b/TSP) among households that have one, by age of head. SCF 2022 (latest; 2025 survey not yet released), x1.1417 CPI-U (2022 avg -> Aug 2026). Most of it is pre-tax (traditional) money.",
         "cash": "Median balance of transaction accounts (checking, savings, money market) among the 98% of families that have them, by age of head. SCF 2022 x1.1417 CPI-U. The SCF doesn't split checking from savings, so the typical default sits in checking.",
-        "savings": "12% of pay (Vanguard average total contribution rate, employee + employer, 12.1%) x $87,460 median household income (Census 2025).",
-        "stocks": "75% stocks: in the Trinity-study engine it has the same 30-year safe rate as 100% stocks with less volatility."
+        "savings": "Vanguard 2026: average employee 401(k) deferral 7.6% of pay plus 4.5% from the employer (12.1% total).",
+        "stocks": "75% stocks: in the Trinity-study engine it has the same 30-year safe rate as 100% stocks with less volatility.",
+        "income": "Median household income $87,460 (Census, 2025)."
       },
       "sources": [
         "scf",
         "vanguard",
         "census",
         "gallup"
-      ]
+      ],
+      "income": {
+        "you": 87460,
+        "partner": 0
+      },
+      "contributionPct": {
+        "k401": 0.076,
+        "roth401k": 0,
+        "match": 0.045,
+        "rothIra": 0,
+        "hsa": 0,
+        "brokerage": 0,
+        "cash": 0
+      }
     }
+  },
+  "limits": {
+    "k401": 24500,
+    "k401CatchUp50": 8000,
+    "k401CatchUp60to63": 11250,
+    "total415c": 72000,
+    "ira": 7500,
+    "iraCatchUp50": 1100,
+    "hsaSelf": 4400,
+    "hsaFamily": 8750,
+    "hsaCatchUp55": 1000,
+    "note": "2026 IRS limits. They're indexed to inflation, so they stay flat in today's dollars; catch-ups apply from 50 (401k, IRA), 55 (HSA) and the larger 401(k) catch-up at 60-63. Each adult in a couple gets their own 401(k) and IRA limit; the HSA family limit is per household.",
+    "sources": [
+      "irsRetirement",
+      "irsHsa"
+    ]
+  },
+  "contributionGrowth": {
+    "value": 0.0176,
+    "note": "Contributions rise with your pay. Real growth in the average US wage is projected at 1.76%/yr for 2025-2035 (Social Security Trustees 2026, intermediate assumptions); 0.78%/yr was the 1969-2019 average.",
+    "source": "ssaTrustees"
+  },
+  "careerStartAge": {
+    "value": 22,
+    "note": "Earnings years for the Social Security estimate start here (typical age after a four-year degree) and stop at your retirement age."
   }
 }
