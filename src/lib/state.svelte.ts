@@ -9,7 +9,7 @@ import { estimateSocialSecurity } from './math/socialSecurity.ts';
 import { TIERS, tierIndex, localRatio, localReference, tierSpend } from './math/tiers.ts';
 import type { Household } from './math/tiers.ts';
 import { METRICS, passes } from './metrics.ts';
-import type { MetricId } from './metrics.ts';
+import type { MetricId, Units } from './metrics.ts';
 import citiesJson from '../data/cities.json';
 import metaJson from '../data/meta.json';
 import decilesJson from '../data/spendingDeciles.json';
@@ -143,6 +143,7 @@ class AppState {
   sort = $state<SortKey>('best');
   sortDesc = $state(false);
   costUnit = $state<CostUnit>('mo'); // how tier columns show a city's price
+  units = $state<Units>('us'); // °F / inches vs °C / mm
   selectedCityId = $state<string | null>(null);
   methodsOpen = $state(false);
   sharedPlan = $state(false); // opened from someone's link; not saved until edited
@@ -475,6 +476,7 @@ const FIELDS: Field[] = [
   field('view', () => app.tab, (v) => (app.tab = v), (r): Tab => (r === 'list' ? 'list' : 'map'), DEFAULT_TAB),
   field('sort', () => app.sort, (v) => (app.sort = v), (r): SortKey => (r === 'best' || r === 'name' || COLUMNS.some((c) => c.id === r) ? (r as SortKey) : 'best'), 'best' as SortKey),
   field('desc', () => app.sortDesc, (v) => (app.sortDesc = v), (r) => r === 'true', false),
+  field('units', () => app.units, (v) => (app.units = v), (r): Units => (r === 'metric' ? 'metric' : 'us'), 'us' as Units),
   field('unit', () => app.costUnit, (v) => (app.costUnit = v), (r): CostUnit => (r === 'yr' || r === 'egg' ? r : 'mo'), 'mo' as CostUnit),
   field('city', () => app.selectedCityId, (v) => (app.selectedCityId = v), (r) => (cityById.has(r) ? r : null), null as string | null),
 ];

@@ -189,6 +189,14 @@
     "ssaTrustees": {
       "label": "Social Security Trustees Report 2026, economic assumptions",
       "url": "https://www.ssa.gov/OACT/TR/2026/V_B_econ.html"
+    },
+    "openMeteo": {
+      "label": "Open-Meteo Historical Weather API (Zippenfenig 2023, doi:10.5281/zenodo.7970649), CC BY 4.0",
+      "url": "https://open-meteo.com/en/docs/historical-weather-api"
+    },
+    "era5": {
+      "label": "ERA5 reanalysis, Copernicus Climate Change Service (Hersbach et al. 2020)",
+      "url": "https://doi.org/10.1002/qj.3803"
     }
   },
   "cashByAge": {

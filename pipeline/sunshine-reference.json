@@ -1,0 +1,105 @@
+{
+  "_comment": "Measured annual sunshine (station normals) used to calibrate Open-Meteo/ERA5 sunshine, which reads high under clouds. Mexico City excluded (official normals disagree by ~30%). Collected 2026-10-02.",
+  "zurich-ch": {
+    "hours": 1694.3,
+    "station": "Zürich/Fluntern 06660 (MeteoSwiss)",
+    "period": "1991-2020",
+    "url": "https://www.ncei.noaa.gov/data/oceans/archive/arc0216/0253808/5.5/data/0-data/Region-6-WMO-Normals-9120/Switzerland/CSV/ZuerichFluntern_06660.csv"
+  },
+  "london-gb": {
+    "hours": 1674.8,
+    "station": "Heathrow 03772 (Met Office)",
+    "period": "1991-2020",
+    "url": "https://www.ncei.noaa.gov/data/oceans/archive/arc0216/0253808/5.5/data/0-data/Region-6-WMO-Normals-9120/UnitedKingdom/CSV/Heathrow_03772.csv"
+  },
+  "new-york-ny-us": {
+    "hours": 2534.7,
+    "station": "Central Park (NWS)",
+    "period": "1961-1990 (21 yrs)",
+    "url": "https://www.ncei.noaa.gov/data/normals-old/WMO/1961-1990/TABLES/REG_IV/US/GROUP2/00305801.TXT"
+  },
+  "los-angeles-ca-us": {
+    "hours": 3254.2,
+    "station": "Downtown 045115 (NWS)",
+    "period": "1961-1977",
+    "url": "https://www.ncei.noaa.gov/data/normals-old/WMO/1961-1990/RA-IV/US/GROUP1/00045115.TXT"
+  },
+  "phoenix-az-us": {
+    "hours": 3871.6,
+    "station": "Sky Harbor 72278 (NWS)",
+    "period": "1961-1990",
+    "url": "https://www.ncei.noaa.gov/data/normals-old/WMO/1961-1990/TABLES/REG_IV/US/GROUP3/72278.TXT"
+  },
+  "seattle-wa-us": {
+    "hours": 2169.7,
+    "station": "Sea-Tac 72793 (NWS)",
+    "period": "1961-1990",
+    "url": "https://www.ncei.noaa.gov/data/normals-old/WMO/1961-1990/TABLES/REG_IV/US/GROUP4/72793.TXT"
+  },
+  "lisbon-pt": {
+    "hours": 2881.7,
+    "station": "Lisboa/Geofísico 08535 (IPMA via CLIMAT)",
+    "period": "1991-2020",
+    "url": "https://opendata.dwd.de/climate_environment/CDC/observations_global/CLIMAT/monthly/qc/sunshine_duration/historical/08535_198607_202105.txt"
+  },
+  "madrid-es": {
+    "hours": 2818.8,
+    "station": "Barajas 08221 (AEMET)",
+    "period": "1991-2020",
+    "url": "https://www.ncei.noaa.gov/data/oceans/archive/arc0216/0253808/5.5/data/0-data/Region-6-WMO-Normals-9120/Spain/CSV/MADRIDBARAJAS_8221.csv"
+  },
+  "singapore-sg": {
+    "hours": 2074.0,
+    "station": "Changi 48698 (MSS)",
+    "period": "1991-2020",
+    "url": "https://www.ncei.noaa.gov/data/oceans/archive/arc0216/0253808/5.5/data/0-data/Region-5-WMO-Normals-9120/Singapore/CSV/ChangiAirport_48698.csv"
+  },
+  "tokyo-jp": {
+    "hours": 1926.7,
+    "station": "Tokyo 47662 (JMA)",
+    "period": "1991-2020",
+    "url": "https://www.ncei.noaa.gov/data/oceans/archive/arc0216/0253808/5.5/data/0-data/Region-2-WMO-Normals-9120/Japan/CSV/Tokyo_47662.csv"
+  },
+  "bangkok-th": {
+    "hours": 2212.2,
+    "station": "Bangkok Metropolis 48455 (TMD)",
+    "period": "1991-2020",
+    "url": "https://www.ncei.noaa.gov/data/oceans/archive/arc0216/0253808/5.5/data/0-data/Region-2-WMO-Normals-9120/Thailand/CSV/BangkokMetropolis_48455.csv"
+  },
+  "buenos-aires-ar": {
+    "hours": 2383.2,
+    "station": "Observatorio Central 87585 (SMN)",
+    "period": "1991-2020",
+    "url": "https://www.ncei.noaa.gov/data/oceans/archive/arc0216/0253808/5.5/data/0-data/Region-3-WMO-Normals-9120/Argentina/CSV/BUENOS_AIRES_OBSERVATORIO_87585.csv"
+  },
+  "sydney-au": {
+    "hours": 2627.6,
+    "station": "Sydney Airport 94767 (BoM)",
+    "period": "1991-2020",
+    "url": "https://www.ncei.noaa.gov/data/oceans/archive/arc0216/0253808/5.5/data/0-data/Region-5-WMO-Normals-9120/Australia/CSV/SydneyAirport_94767.csv"
+  },
+  "cape-town-za": {
+    "hours": 3115.0,
+    "station": "Cape Town Intl 68816 (SAWS)",
+    "period": "1991-2020",
+    "url": "https://www.ncei.noaa.gov/data/oceans/archive/arc0216/0253808/5.5/data/0-data/Region-1-WMO-Normals-9120/SouthAfrica/CSV/CapeTown_68816.csv"
+  },
+  "dubai-ae": {
+    "hours": 3608.9,
+    "station": "Dubai Intl 41194 (NCM)",
+    "period": "1991-2020",
+    "url": "https://www.ncei.noaa.gov/data/oceans/archive/arc0216/0253808/5.5/data/0-data/Region-2-WMO-Normals-9120/UAE/CSV/DubaiIntlAirport_41194.csv"
+  },
+  "oslo-no": {
+    "hours": 1724.6,
+    "station": "Blindern 01492 (Met Norway)",
+    "period": "1991-2020",
+    "url": "https://seklima.met.no/"
+  },
+  "bogota-co": {
+    "hours": 1595,
+    "station": "El Dorado 21205790 (IDEAM)",
+    "period": "1981-2010",
+    "url": "https://web.archive.org/web/20160815025712/http://www.ideam.gov.co/documents/21021/553571/Promedios%2BClimatol%C3%B3gicos%2B%2B1981%2B-%2B2010.xlsx/f28d0b07-1208-4a46-8ccf-bddd70fb4128"
+  }
+}

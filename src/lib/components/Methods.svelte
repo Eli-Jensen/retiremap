@@ -157,6 +157,26 @@
     </section>
 
     <section class="space-y-2">
+      <h3 class="font-semibold text-slate-900">Climate</h3>
+      <p>
+        Daily weather for each city from the
+        <a class="text-blue-600 underline" href={sources.openMeteo.url} target="_blank" rel="noreferrer">Open-Meteo Historical Weather API</a>
+        (<a class="text-blue-600 underline" href={sources.era5.url} target="_blank" rel="noreferrer">ERA5</a> reanalysis, ~25 km grid),
+        {#if meta.climate}{meta.climate.firstYear === meta.climate.lastYear ? `${meta.climate.lastYear}` : `${meta.climate.firstYear}–${meta.climate.lastYear}`}{/if},
+        averaged by month. "Summer highs" is the average daily high in the hottest month; "winter lows" the average nightly low in
+        the coldest month; a rainy day has at least 1 mm. Reanalysis smooths mountains and coasts, so very local
+        microclimates can differ. Its sunshine is derived from modeled radiation and reads high under clouds (+56% in London,
+        +3% in Phoenix), so it's calibrated against measured station normals in
+        {meta.climate?.sunCalibration?.n ?? 'several'} cities (WMO normals via NOAA), using the model value and the number of
+        rainy days as a cloudiness signal: typical error {meta.climate?.sunCalibration?.rawMae ?? '—'} h →
+        {meta.climate?.sunCalibration?.looMae ?? '—'} h (median {meta.climate?.sunCalibration?.looMedian ?? '—'} h, leave-one-out). It's least reliable in the tropics (especially high-altitude ones like Bogotá) and fails in coastal-fog deserts — Lima shows ~3,400 h but is famously overcast.
+        {#if meta.climate && meta.climate.firstYear === meta.climate.lastYear}
+          <b>For now this is a single year</b>; a multi-year average is being fetched and will replace it.
+        {/if}
+      </p>
+    </section>
+
+    <section class="space-y-2">
       <h3 class="font-semibold text-slate-900">Not modeled</h3>
       <ul class="list-disc space-y-1 pl-5">
         <li>Visas and residency rules — many countries require a minimum income or deposit.</li>
@@ -178,7 +198,8 @@
         snapshot {meta.snapshotDate}, {meta.cityCount} cities. Coordinates:
         <a class="text-blue-600 underline" href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a> (CC BY 4.0). Regions:
         <a class="text-blue-600 underline" href={sources.m49.url} target="_blank" rel="noreferrer">UN M49</a>, plus the EU and a
-        conventional Middle East. Market history: <a class="text-blue-600 underline" href={sources.shiller.url} target="_blank" rel="noreferrer">Shiller</a>,
+        conventional Middle East. Weather: <a class="text-blue-600 underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Weather data by Open-Meteo.com</a>
+        (CC BY 4.0). Market history: <a class="text-blue-600 underline" href={sources.shiller.url} target="_blank" rel="noreferrer">Shiller</a>,
         <a class="text-blue-600 underline" href={sources.fredGs10.url} target="_blank" rel="noreferrer">FRED GS10</a>. Map:
         <a class="text-blue-600 underline" href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a>, © OpenMapTiles,
         © OpenStreetMap contributors.

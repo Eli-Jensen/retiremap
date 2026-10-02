@@ -6,6 +6,17 @@
     "col": 79.53,
     "colRent": 67.31
   },
+  "climate": {
+    "firstYear": 2024,
+    "lastYear": 2024,
+    "cities": 555,
+    "sunCalibration": {
+      "n": 17,
+      "rawMae": 917,
+      "looMae": 313,
+      "looMedian": 198
+    }
+  },
   "salaryAnchor": {
     "date": "2026-10-01",
     "nycNet": 5275.33,

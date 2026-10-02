@@ -26,6 +26,19 @@ export type CityRecord = {
   // than the Quality of Life table), falling back to the QoL table's copy.
   safety?: number;
   healthCare?: number;
+  climate?: Climate; // Open-Meteo (ERA5) averages; absent until fetched
+};
+
+/** Climate averages over the fetched years. Temperatures °C, rain mm. */
+export type Climate = {
+  years: number; // how many years are averaged
+  summerHigh: number; // average daily high in the hottest month
+  winterLow: number; // average daily low in the coldest month
+  sunHours: number; // per year
+  rain: number; // mm per year
+  rainyDays: number; // days with ≥ 1 mm, per year
+  humidity: number; // mean relative humidity, %
+  months: { hi: number; lo: number; rain: number }[]; // Jan..Dec
 };
 
 export type PlaceKind = 'continent' | 'subregion' | 'group' | 'country';
@@ -48,6 +61,12 @@ export type Meta = {
   // Population-weighted mean index over US cities in the dataset; the
   // reference point that places any budget on the US spending-percentile curve.
   usRefIndex: { col: number; colRent: number };
+  climate?: {
+    firstYear: number;
+    lastYear: number;
+    cities: number;
+    sunCalibration?: { n: number; rawMae: number; looMae: number; looMedian: number };
+  };
   salaryAnchor: {
     date: string;
     nycNet: number; // Numbeo NYC average monthly net salary, USD

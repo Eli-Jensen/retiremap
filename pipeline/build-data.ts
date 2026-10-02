@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { CityRecord, Meta, Place } from '../src/lib/types.ts';
 import { parseM49, placesFor } from './places.ts';
+import { loadClimate, calibrateSunshine, applySun } from './build-climate.ts';
 import type { PlaceDef } from './places.ts';
 import { parseNumbeo, parseNumbeoQol } from './parse-numbeo.ts';
 import { parseGeoNames, parseCountryInfo, resolveCountry, CityMatcher } from './match-cities.ts';
@@ -125,6 +126,7 @@ for (const row of numbeoRows) {
 // --- assemble city records ---
 const slugify = (s: string) => norm(s).replace(/\s+/g, '-');
 const cities: CityRecord[] = [];
+const climateYears = new Set<number>();
 for (const r of results) {
   if (r.status === 'unmatched') continue;
   if (r.status === 'override' && 'skip' in r.override) continue;
@@ -168,6 +170,11 @@ for (const r of results) {
   const bestHealth = health ?? q?.healthCare;
   if (bestSafety !== undefined) record.safety = bestSafety;
   if (bestHealth !== undefined) record.healthCare = bestHealth;
+  const clim = loadClimate(raw('climate'), record.id);
+  if (clim) {
+    record.climate = clim.climate;
+    for (const y of clim.years) climateYears.add(y);
+  }
   cities.push(record);
 }
 
@@ -190,11 +197,29 @@ const usRefIndex = {
   colRent: round2(usCities.reduce((a, c) => a + c.colRent * c.pop!, 0) / wSum),
 };
 
+// --- sunshine calibration (see build-climate.ts) ---
+const sunRef = JSON.parse(readFileSync(join(here, 'sunshine-reference.json'), 'utf8'));
+const sunInputs = new Map(cities.filter((c) => c.climate).map((c) => [c.id, { model: c.climate!.sunHours, rainyDays: c.climate!.rainyDays }]));
+const sunCal = calibrateSunshine(sunInputs, sunRef);
+if (sunCal) for (const c of cities) if (c.climate) c.climate.sunHours = applySun(sunCal, sunInputs.get(c.id)!);
+
 const meta: Meta = {
   edition: 'Numbeo Cost of Living Index (current)',
   snapshotDate,
   cityCount: cities.length,
   usRefIndex,
+  ...(climateYears.size
+    ? {
+        climate: {
+          firstYear: Math.min(...climateYears),
+          lastYear: Math.max(...climateYears),
+          cities: cities.filter((c) => c.climate).length,
+          ...(sunCal
+            ? { sunCalibration: { n: sunCal.n, rawMae: Math.round(sunCal.rawMae), looMae: Math.round(sunCal.looMae), looMedian: Math.round(sunCal.looMedian) } }
+            : {}),
+        },
+      }
+    : {}),
   salaryAnchor: {
     date: anchor.date,
     nycNet: anchor.nycNet,
@@ -250,6 +275,12 @@ if (report.unmatched.length) console.log(`UNMATCHED (${report.unmatched.length})
 console.log(`Places: ${places.filter((p) => p.kind !== 'country').map((p) => `${p.label} ${p.count}`).join(', ')}`);
 const qolJoined = cities.filter((c) => c.qol).length;
 console.log(`QoL: ${qolJoined}/${cities.length} cities rated (${qolByName.size} rows in the QoL table)`);
+if (sunCal)
+  console.log(
+    `Sunshine calibration: measured = ${sunCal.coef[0].toFixed(0)} + ${sunCal.coef[1].toFixed(3)} × model + ${sunCal.coef[2].toFixed(2)} × rainyDays over ${sunCal.n} stations; error ${sunCal.rawMae.toFixed(0)} h raw → ${sunCal.looMae.toFixed(0)} h mean / ${sunCal.looMedian.toFixed(0)} h median (leave-one-out)`,
+  );
+else if (climateYears.size) console.warn('Sunshine NOT calibrated (fewer than 8 reference cities have climate yet)');
+console.log(`Climate: ${cities.filter((c) => c.climate).length} cities (${[...climateYears].sort().join(', ') || 'none fetched'})`);
 console.log(`Safety: ${cities.filter((c) => c.safety !== undefined).length} cities · Health care: ${cities.filter((c) => c.healthCare !== undefined).length} cities`);
 const qolOrphans = [...qolByName.keys()].filter((n) => !rowByName.has(n));
 if (qolOrphans.length) console.log(`QoL rows with no cost-table city (ignored): ${qolOrphans.join('; ')}`);
@@ -269,6 +300,7 @@ for (const c of cities) {
 }
 if (meanAbsError > 0.05) failures.push(`salary derivation mean |err| ${(meanAbsError * 100).toFixed(1)}% > 5%`);
 if (basicsMeanAbsError > 0.1) failures.push(`basics mean |err| ${(basicsMeanAbsError * 100).toFixed(1)}% > 10%`);
+if (sunCal && (sunCal.coef[1] < 0.5 || sunCal.coef[1] > 2 || sunCal.looMae > 450)) failures.push(`sunshine calibration looks off: slope ${sunCal.coef[1].toFixed(2)}, LOO error ${sunCal.looMae.toFixed(0)} h`);
 if (qolJoined < 250) failures.push(`only ${qolJoined} cities have QoL (< 250)`);
 for (const c of cities) if (!(c.salary > 50)) failures.push(`${c.id}.salary = ${c.salary}`);
 for (const c of cities) if (!(c.pop && c.pop > 0)) failures.push(`${c.id} has no population — add "pop" to its override`);

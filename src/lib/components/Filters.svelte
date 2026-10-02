@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { app, cities, places, placeById, flagEmoji } from '../state.svelte.ts';
+  import { app, cities, places, placeById, flagEmoji, meta } from '../state.svelte.ts';
   import type { Place } from '../types.ts';
-  import { METRICS } from '../metrics.ts';
-  import type { Metric } from '../metrics.ts';
+  import { METRICS, displayRange, toDisplay, fromDisplay, fmtMetric } from '../metrics.ts';
+  import type { Metric, Units } from '../metrics.ts';
 
   let query = $state('');
   let focused = $state(false);
@@ -45,12 +45,18 @@
 
   // Index sliders: the "any" end is the worst value, so dragging toward better tightens the filter.
   const sliderMetrics = METRICS.filter((m) => m.id !== 'pop');
-  const groups = [...new Set(sliderMetrics.map((m) => m.group))].map((g) => ({ name: g, metrics: sliderMetrics.filter((m) => m.group === g) }));
+  const GROUP_ORDER = ['Livability', 'Climate', 'Prices (New York = 100)'] as const;
+  const groups = GROUP_ORDER.map((g) => ({ name: g, metrics: sliderMetrics.filter((m) => m.group === g) }));
   const coverage = Object.fromEntries(METRICS.map((m) => [m.id, cities.filter((c) => m.get(c) !== null).length]));
-  const anyEnd = (m: Metric) => (m.higherIsBetter ? m.min : m.max);
-  const sliderValue = (m: Metric) => app.metricLimits[m.id] ?? anyEnd(m);
+  // Sliders work in display units (°F/in or °C/mm); limits are stored in metric units.
+  const range = (m: Metric) => displayRange(m, app.units);
+  const anyEnd = (m: Metric) => (m.higherIsBetter ? range(m)[0] : range(m)[1]);
+  const sliderValue = (m: Metric) => {
+    const l = app.metricLimits[m.id];
+    return l === undefined ? anyEnd(m) : Math.round(toDisplay(m, l, app.units) / range(m)[2]) * range(m)[2];
+  };
   function onSlide(m: Metric, v: number) {
-    app.setLimit(m.id, v === anyEnd(m) ? null : v);
+    app.setLimit(m.id, v === anyEnd(m) ? null : Math.round(fromDisplay(m, v, app.units) * 100) / 100);
   }
   const POPS = [
     { v: 0, label: 'Any size' },
@@ -142,19 +148,36 @@
     <div class="mt-3 space-y-4 text-xs text-slate-600">
       {#each groups as g (g.name)}
         <div class="space-y-3">
-          <h3 class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{g.name}</h3>
+          <div class="flex items-center justify-between">
+            <h3 class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{g.name}</h3>
+            {#if g.name === 'Climate'}
+              <div class="flex rounded-md border border-slate-300 bg-white p-0.5" role="radiogroup" aria-label="Units">
+                {#each [['us', '°F · in'], ['metric', '°C · mm']] as [u, label] (u)}
+                  <button
+                    role="radio"
+                    aria-checked={app.units === u}
+                    class="rounded px-1.5 py-0.5 text-[10px] {app.units === u ? 'bg-slate-800 text-white' : 'text-slate-600'}"
+                    onclick={() => (app.units = u as Units)}>{label}</button
+                  >
+                {/each}
+              </div>
+            {/if}
+          </div>
+          {#if g.name === 'Climate' && !meta.climate}
+            <p class="text-[11px] text-amber-700">Climate data is still being fetched.</p>
+          {/if}
           {#each g.metrics as m (m.id)}
             {@const on = app.metricLimits[m.id] !== undefined}
             <label class="block space-y-1">
               <span class="flex justify-between gap-2">
                 <span>{m.label} <span class="text-slate-400">· {coverage[m.id]} cities rated</span></span>
-                <b class="tabular-nums {on ? 'text-blue-700' : ''}">{on ? `${m.higherIsBetter ? '≥' : '≤'} ${app.metricLimits[m.id]}` : 'any'}</b>
+                <b class="tabular-nums {on ? 'text-blue-700' : ''}">{on ? `${m.higherIsBetter ? '≥' : '≤'} ${fmtMetric(m, app.metricLimits[m.id]!, app.units)}` : 'any'}</b>
               </span>
               <input
                 type="range"
-                min={m.min}
-                max={m.max}
-                step={m.step}
+                min={range(m)[0]}
+                max={range(m)[1]}
+                step={range(m)[2]}
                 class="w-full accent-blue-600 {on ? '' : 'opacity-40'}"
                 value={sliderValue(m)}
                 oninput={(e) => onSlide(m, Number(e.currentTarget.value))}

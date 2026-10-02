@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { app, placeById, flagEmoji, fmtUsd, fmtUsdCompact, fmtCompact, fmtPct, fmtPercentile, TARGET_TIERS } from '../state.svelte.ts';
+  import { app, meta, placeById, flagEmoji, fmtUsd, fmtUsdCompact, fmtCompact, fmtPct, fmtPercentile, TARGET_TIERS } from '../state.svelte.ts';
   import { TIERS, HOUSEHOLD_SCALE, localReference, tierSpend } from '../math/tiers.ts';
   import { CLASS_COLORS } from '../math/color.ts';
-  import { METRICS } from '../metrics.ts';
+  import { METRICS, fmtMetric } from '../metrics.ts';
 
   const city = $derived(app.selectedCity);
   const r = $derived(city ? app.results.get(city.id) : undefined);
@@ -136,7 +136,7 @@
         <b class="text-sm tabular-nums text-slate-900">{city.qol ? Math.round(city.qol.index) : '—'}</b>
       </div>
       <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs tabular-nums text-slate-600">
-        {#each METRICS.filter((m) => m.id !== 'qol' && m.id !== 'pop') as m (m.id)}
+        {#each METRICS.filter((m) => m.group !== 'Climate' && m.id !== 'qol' && m.id !== 'pop') as m (m.id)}
           {@const v = m.get(city)}
           <span>{m.label}{#if !m.higherIsBetter}<span class="text-slate-400"> ↓</span>{/if}</span>
           <span class="text-right">{v === null ? '—' : Math.round(v)}</span>
@@ -144,6 +144,36 @@
       </div>
       <p class="text-[11px] text-slate-400">Numbeo indexes; prices with New York = 100; ↓ = lower is better.</p>
     </div>
+
+    {#if city.climate}
+      {@const cl = city.climate}
+      {@const t = (c: number) => Math.round(app.units === 'us' ? (c * 9) / 5 + 32 : c)}
+      <div class="space-y-1">
+        <div class="flex items-baseline justify-between">
+          <span class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Climate</span>
+          <button class="text-[10px] text-slate-400 hover:text-slate-700" onclick={() => (app.units = app.units === 'us' ? 'metric' : 'us')}>
+            {app.units === 'us' ? '°F → °C' : '°C → °F'}
+          </button>
+        </div>
+        <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs tabular-nums text-slate-600">
+          {#each METRICS.filter((m) => m.group === 'Climate' && m.id !== 'climate') as m (m.id)}
+            {@const v = m.get(city)}
+            <span>{m.label}</span><span class="text-right">{v === null ? '—' : fmtMetric(m, v, app.units)}</span>
+          {/each}
+        </div>
+        <table class="mt-1 w-full table-fixed text-center text-[10px] tabular-nums text-slate-500">
+          <thead><tr>{#each 'JFMAMJJASOND' as mo, i (i)}<th class="font-medium text-slate-400">{mo}</th>{/each}</tr></thead>
+          <tbody>
+            <tr class="text-red-700">{#each cl.months as m, i (i)}<td>{t(m.hi)}</td>{/each}</tr>
+            <tr class="text-blue-700">{#each cl.months as m, i (i)}<td>{t(m.lo)}</td>{/each}</tr>
+          </tbody>
+        </table>
+        <p class="text-[11px] text-slate-400">
+          Monthly average high / low (°{app.units === 'us' ? 'F' : 'C'}),
+          {cl.years === 1 ? `${meta.climate?.lastYear} only` : `${cl.years}-year average`} · Open-Meteo / ERA5.
+        </p>
+      </div>
+    {/if}
 
     <div class="flex gap-2 text-[11px]">
       <button class="flex-1 rounded-md border border-slate-200 py-1 text-slate-600 hover:bg-slate-50" onclick={() => app.setPlace(countryId, 'only')}>

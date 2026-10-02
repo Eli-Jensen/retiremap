@@ -139,14 +139,21 @@ once or twice a year:
    `pipeline/raw/m49.csv` (columns as on that page: … Region Name, Sub-region
    Name, Intermediate Region Name, … ISO-alpha2 Code …). Taiwan and Kosovo
    aren't in M49 and are placed in `pipeline/places.ts`.
-6. `npm run pipeline` — matches cities, prints the salary/basics calibration
+6. **Climate** (Open-Meteo, CC BY 4.0, free non-commercial tier):
+   `npx tsx pipeline/fetch-climate.ts 2015-2024` writes monthly averages per
+   city-year to `pipeline/raw/climate/<id>/<year>.json`. It's resumable and
+   paces itself under the free limits (a year of 5 daily variables costs
+   13 "calls"; 10,000/day, 5,000/hour), keeping a per-day ledger in
+   `pipeline/raw/climate/_ledger.json`; rerun daily until "Remaining: 0".
+   The pipeline averages whatever years exist.
+7. `npm run pipeline` — matches cities, prints the salary/basics calibration
    tables, and trips loudly on anything suspicious (salary error > 5%, basics
    error > 10%, < 250 QoL-rated cities…). Fix stragglers in
    `pipeline/overrides.json`, commit the regenerated `src/data/*.json`.
-7. **Market history** (`src/data/market.json`) is exported from the
+8. **Market history** (`src/data/market.json`) is exported from the
    trinity-study project (`make web-data` there); copy it and
    `src/lib/math/swr.reference.json` across together.
-8. **Defaults** (`src/data/defaults.json`) — re-check the sources listed in
+9. **Defaults** (`src/data/defaults.json`) — re-check the sources listed in
    it, especially the Fed SCF (2025 survey due), SSA COLA, and KFF premiums.
 
 ## Manual smoke checklist
@@ -182,6 +189,8 @@ once or twice a year:
   (snapshot; attribution required — this link is the credit).
 - City coordinates: [GeoNames](https://www.geonames.org/) (CC BY 4.0).
 - Market history: Robert Shiller (stocks, CPI), FRED GS10.
+- Weather: [Open-Meteo](https://open-meteo.com/) Historical Weather API
+  (ERA5 reanalysis), CC BY 4.0.
 - Spending distribution: BLS Consumer Expenditure Survey (2024) via FRED.
 - Defaults: Federal Reserve SCF, Vanguard, Census, SSA, IRS, KFF, CMS, OECD,
   International Citizens Insurance — full list with URLs in

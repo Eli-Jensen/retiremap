@@ -4,6 +4,12 @@
 import type { CityRecord } from './types.ts';
 
 export type MetricId =
+  | 'summerHigh'
+  | 'winterLow'
+  | 'sunHours'
+  | 'rain'
+  | 'rainyDays'
+  | 'humidity'
   | 'qol'
   | 'safety'
   | 'healthCare'
@@ -15,6 +21,9 @@ export type MetricId =
   | 'purchasingPower'
   | 'pop';
 
+export type Units = 'us' | 'metric';
+type Range = [min: number, max: number, step: number];
+
 export type Metric = {
   id: MetricId;
   label: string;
@@ -22,14 +31,99 @@ export type Metric = {
   hashKey: string; // URL / saved-plan key for the filter
   get: (c: CityRecord) => number | null;
   higherIsBetter: boolean;
-  min: number; // slider range
+  min: number; // slider range, in the metric's own units (°C, mm, …)
   max: number;
   step: number;
-  group: 'Livability' | 'Prices (New York = 100)' | 'City';
+  usRange?: Range; // slider range in US units, when they differ
+  kind?: 'temp' | 'rain' | 'hours' | 'pct' | 'days';
+  group: 'Climate' | 'Livability' | 'Prices (New York = 100)' | 'City';
   hint: string;
 };
 
+const climateHint = 'Open-Meteo (ERA5) daily weather, averaged';
+
 export const METRICS: Metric[] = [
+  {
+    id: 'summerHigh',
+    label: 'Summer highs',
+    hashKey: 'hot',
+    get: (c) => c.climate?.summerHigh ?? null,
+    higherIsBetter: false,
+    min: 15,
+    max: 45,
+    step: 1,
+    usRange: [59, 113, 2],
+    kind: 'temp',
+    group: 'Climate',
+    hint: 'Average daily high in the hottest month',
+  },
+  {
+    id: 'winterLow',
+    label: 'Winter lows',
+    hashKey: 'cold',
+    get: (c) => c.climate?.winterLow ?? null,
+    higherIsBetter: true,
+    min: -25,
+    max: 25,
+    step: 1,
+    usRange: [-13, 77, 2],
+    kind: 'temp',
+    group: 'Climate',
+    hint: 'Average nightly low in the coldest month',
+  },
+  {
+    id: 'sunHours',
+    label: 'Sunshine',
+    hashKey: 'sun',
+    get: (c) => c.climate?.sunHours ?? null,
+    higherIsBetter: true,
+    min: 1000,
+    max: 4000,
+    step: 100,
+    kind: 'hours',
+    group: 'Climate',
+    hint: 'Sunny hours per year — weather-model estimate calibrated to station records (typically within ~300 h); reads too sunny in coastal-fog cities like Lima',
+  },
+  {
+    id: 'rain',
+    label: 'Rainfall',
+    hashKey: 'wet',
+    get: (c) => c.climate?.rain ?? null,
+    higherIsBetter: false,
+    min: 0,
+    max: 3000,
+    step: 50,
+    usRange: [0, 120, 2],
+    kind: 'rain',
+    group: 'Climate',
+    hint: 'Per year',
+  },
+  {
+    id: 'rainyDays',
+    label: 'Rainy days',
+    hashKey: 'wetdays',
+    get: (c) => c.climate?.rainyDays ?? null,
+    higherIsBetter: false,
+    min: 0,
+    max: 250,
+    step: 10,
+    kind: 'days',
+    group: 'Climate',
+    hint: 'Days per year with at least 1 mm (0.04 in)',
+  },
+  {
+    id: 'humidity',
+    label: 'Humidity',
+    hashKey: 'humid',
+    get: (c) => c.climate?.humidity ?? null,
+    higherIsBetter: false,
+    min: 30,
+    max: 90,
+    step: 5,
+    kind: 'pct',
+    group: 'Climate',
+    hint: 'Average relative humidity',
+  },
   {
     id: 'qol',
     label: 'Quality of life',
@@ -70,15 +164,16 @@ export const METRICS: Metric[] = [
   },
   {
     id: 'climate',
-    label: 'Climate',
+    label: 'Climate score (Numbeo)',
+    short: 'Climate score',
     hashKey: 'clim',
     get: (c) => c.qol?.climate ?? null,
     higherIsBetter: true,
     min: 0,
     max: 100,
     step: 5,
-    group: 'Livability',
-    hint: 'Higher = milder. Chicago 66 · Lisbon 99',
+    group: 'Climate',
+    hint: 'Residents’ ratings; higher = milder. Chicago 66 · Lisbon 99',
   },
   {
     id: 'pollution',
@@ -164,4 +259,42 @@ export function passes(m: Metric, c: CityRecord, limit: number | undefined): boo
   const v = m.get(c);
   if (v === null) return false;
   return m.higherIsBetter ? v >= limit : v <= limit;
+}
+
+// --- units ---
+
+const toUs = (m: Metric, v: number) => (m.kind === 'temp' ? (v * 9) / 5 + 32 : m.kind === 'rain' ? v / 25.4 : v);
+const fromUs = (m: Metric, v: number) => (m.kind === 'temp' ? ((v - 32) * 5) / 9 : m.kind === 'rain' ? v * 25.4 : v);
+
+/** A stored (metric-unit) value as shown to the user. */
+export function toDisplay(m: Metric, v: number, units: Units): number {
+  return units === 'us' ? toUs(m, v) : v;
+}
+export function fromDisplay(m: Metric, v: number, units: Units): number {
+  return units === 'us' ? fromUs(m, v) : v;
+}
+/** Slider [min, max, step] in display units. */
+export function displayRange(m: Metric, units: Units): Range {
+  return units === 'us' && m.usRange ? m.usRange : [m.min, m.max, m.step];
+}
+export function unitSuffix(m: Metric, units: Units): string {
+  switch (m.kind) {
+    case 'temp':
+      return units === 'us' ? '°F' : '°C';
+    case 'rain':
+      return units === 'us' ? ' in' : ' mm';
+    case 'hours':
+      return ' h';
+    case 'pct':
+      return '%';
+    case 'days':
+      return ' days';
+    default:
+      return '';
+  }
+}
+export function fmtMetric(m: Metric, v: number, units: Units): string {
+  const d = toDisplay(m, v, units);
+  const digits = m.kind === 'rain' && units === 'us' ? 0 : 0;
+  return `${d.toLocaleString('en-US', { maximumFractionDigits: digits })}${unitSuffix(m, units)}`;
 }

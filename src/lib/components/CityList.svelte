@@ -4,7 +4,7 @@
   import type { CityRecord } from '../types.ts';
   import { TIERS, HOUSEHOLD_SCALE, localReference } from '../math/tiers.ts';
   import { CLASS_COLORS } from '../math/color.ts';
-  import { METRICS } from '../metrics.ts';
+  import { METRICS, METRIC_BY_ID, fmtMetric } from '../metrics.ts';
   import type { MetricId } from '../metrics.ts';
 
   const PAGE = 80;
@@ -256,6 +256,8 @@
                     {fmtUsd(v)}
                   {:else if col.id === 'pop'}
                     {fmtCompact(v)}
+                  {:else if METRIC_BY_ID.get(col.id as MetricId)?.kind}
+                    {fmtMetric(METRIC_BY_ID.get(col.id as MetricId)!, v, app.units)}
                   {:else}
                     {Math.round(v)}
                   {/if}
