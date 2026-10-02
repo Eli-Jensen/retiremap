@@ -97,6 +97,25 @@ describe('income, contributions, Social Security', () => {
   });
 });
 
+describe('tier thresholds', () => {
+  it('a tier is ✓ by your retirement age exactly when your savings then cover its nest egg', () => {
+    for (const hash of ['', '#at=40', '#p=typical', '#age=50&at=55&nw=900000&hh=single']) {
+      readHash(hash);
+      const res = app.results;
+      const have = app.atRetirement.portfolio;
+      for (const c of cities) {
+        const r = res.get(c.id)!;
+        for (const t of [1, 2, 3, 4, 5]) {
+          const onPlan = r.years[t] !== null && app.age + r.years[t]! <= app.retireAge;
+          expect(onPlan, `${c.id} tier ${t} ${hash}`).toBe(r.nestEggs[t] <= have + 1e-6);
+        }
+        expect(r.tierAt).toBe([1, 2, 3, 4, 5].filter((t) => r.nestEggs[t] <= have + 1e-6).pop() ?? 0);
+      }
+    }
+    readHash('');
+  });
+});
+
 describe('lifestyle filter', () => {
   it('"like a king today" keeps exactly the cities where king is reachable now', () => {
     readHash('#nw=3000000&mintier=5&tierwhen=now');

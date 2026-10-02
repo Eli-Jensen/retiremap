@@ -35,6 +35,7 @@ const byAge = (brackets: { maxAge: number; value: number }[], age: number) => br
 
 export type Mode = 'at' | 'when';
 export type TierWhen = 'now' | 'at' | 'by';
+export type CostUnit = 'mo' | 'yr' | 'egg';
 export const LIMITS: Limits = defaults.limits;
 /** Map on wide screens, list on phones — until you pick one (remembered). */
 export const DEFAULT_TAB: Tab =
@@ -52,6 +53,8 @@ export type CityResult = {
   ratioAt: number; // spendAt vs the local reference, per adult-equivalent
   tierAt: number; // index into TIERS
   years: (number | null)[]; // by tier index: years from now until you could retire here at that tier
+  costs: number[]; // by tier index: $/mo that reaches the tier here (excl. health)
+  nestEggs: number[]; // by tier index: savings needed to retire here at that tier at your retirement age
   cls: number; // map class: 0 = gray, 1..5 = palette
   visible: boolean; // passes every filter
 };
@@ -146,6 +149,7 @@ class AppState {
   columns = $state<ColumnId[]>([...DEFAULT_COLUMNS]);
   sort = $state<SortKey>('best');
   sortDesc = $state(false);
+  costUnit = $state<CostUnit>('mo'); // how tier columns show a city's price
   selectedCityId = $state<string | null>(null);
   methodsOpen = $state(false);
   sharedPlan = $state(false); // opened from someone's link; not saved until edited
@@ -271,7 +275,13 @@ class AppState {
       const spendNow = us ? nowUS : nowAbroad;
       const tierNow = tierIndex(localRatio(spendNow, ref, this.household));
       const years: (number | null)[] = [null];
-      for (const t of TARGET_TIERS) years[t] = yearsToRetireFrom(tierSpend(t, ref, this.household), health, proj, a);
+      const costs: number[] = [0];
+      const nestEggs: number[] = [0];
+      for (const t of TARGET_TIERS) {
+        costs[t] = tierSpend(t, ref, this.household);
+        years[t] = yearsToRetireFrom(costs[t], health, proj, a);
+        nestEggs[t] = need(costs[t], health, at.age, a, at.taxRate).total;
+      }
       const q = c.qol;
       const visible =
         (only.size === 0 || c.places.some((p) => only.has(p))) &&
@@ -291,6 +301,8 @@ class AppState {
         ratioAt,
         tierAt,
         years,
+        costs,
+        nestEggs,
         cls: this.mode === 'at' ? tierAt : whenClass(years[this.targetTier]),
         visible,
       });
@@ -463,6 +475,7 @@ const FIELDS: Field[] = [
   field('view', () => app.tab, (v) => (app.tab = v), (r): Tab => (r === 'list' ? 'list' : 'map'), DEFAULT_TAB),
   field('sort', () => app.sort, (v) => (app.sort = v), (r): SortKey => (r === 'best' || r === 'name' || COLUMNS.some((c) => c.id === r) ? (r as SortKey) : 'best'), 'best' as SortKey),
   field('desc', () => app.sortDesc, (v) => (app.sortDesc = v), (r) => r === 'true', false),
+  field('unit', () => app.costUnit, (v) => (app.costUnit = v), (r): CostUnit => (r === 'yr' || r === 'egg' ? r : 'mo'), 'mo' as CostUnit),
   field('city', () => app.selectedCityId, (v) => (app.selectedCityId = v), (r) => (cityById.has(r) ? r : null), null as string | null),
 ];
 

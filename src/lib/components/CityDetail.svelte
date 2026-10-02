@@ -60,22 +60,44 @@
     <div class="space-y-1.5 rounded-lg bg-slate-50 p-2.5">
       <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">When could you retire here…</div>
       <table class="w-full text-xs tabular-nums">
+        <thead class="text-[10px] uppercase tracking-wide text-slate-400">
+          <tr>
+            <th class="pb-0.5 text-left font-medium"></th>
+            <th class="pb-0.5 text-right font-medium">$/mo</th>
+            <th class="pb-0.5 text-right font-medium" title="Savings needed to retire here at this level at {app.retireAge}">need at {app.retireAge}</th>
+            <th class="pb-0.5 text-right font-medium">you</th>
+          </tr>
+        </thead>
         <tbody>
           {#each [...TARGET_TIERS].reverse() as t (t)}
             {@const y = r.years[t]}
-            <tr class={app.mode === 'when' && t === app.targetTier ? 'font-semibold text-slate-900' : 'text-slate-600'}>
-              <td class="py-0.5">
+            {@const onPlan = y !== null && app.age + y <= app.retireAge}
+            <tr class="{app.mode === 'when' && t === app.targetTier ? 'font-semibold text-slate-900' : 'text-slate-600'} {onPlan ? 'bg-emerald-50/70' : ''}">
+              <td class="py-0.5 pl-1">
                 <button class="flex items-center gap-1.5 hover:underline" onclick={() => ((app.targetTier = t), (app.mode = 'when'))}>
                   <span class="inline-block h-2.5 w-2.5 rounded-full" style="background: {CLASS_COLORS[t]}"></span>
                   {TIERS[t].label}
                 </button>
               </td>
-              <td class="py-0.5 text-right text-slate-500">{fmtUsd(tierSpend(t, ref, app.household))}/mo</td>
-              <td class="w-16 py-0.5 text-right">{y === null ? '—' : y === 0 ? 'now' : `age ${app.age + y}`}</td>
+              <td class="py-0.5 text-right">{fmtUsd(r.costs[t])}</td>
+              <td class="py-0.5 pl-2 text-right text-slate-500">{fmtUsdCompact(r.nestEggs[t])}</td>
+              <td class="w-14 py-0.5 pr-1 text-right">
+                {#if y === null}
+                  <span class="text-slate-400">—</span>
+                {:else if onPlan}
+                  <span class="font-medium text-emerald-700">✓ {y === 0 ? 'now' : app.age + y}</span>
+                {:else}
+                  {app.age + y}
+                {/if}
+              </td>
             </tr>
           {/each}
         </tbody>
       </table>
+      <p class="text-[11px] text-slate-400">
+        You'll have {fmtUsdCompact(at.portfolio)} at {app.retireAge}. "$/mo" is spending before health insurance; "need" adds
+        insurance, taxes and the bridge to Social Security. ✓ = within reach by {app.retireAge}.
+      </p>
       {#if b.target && b.targetAge !== null}
         <dl class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 border-t border-slate-200 pt-1.5 text-xs tabular-nums text-slate-600">
           <dt class="col-span-2 text-[11px] font-medium text-slate-500">{TIERS[app.targetTier].label} at {b.targetAge}: you'd need</dt>
