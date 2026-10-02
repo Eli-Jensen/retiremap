@@ -34,7 +34,7 @@ export const PERSONAS: PersonaId[] = ['fire', 'typical'];
 const byAge = (brackets: { maxAge: number; value: number }[], age: number) => brackets.find((b) => age <= b.maxAge)!.value;
 
 export type Mode = 'at' | 'when';
-export type TierWhen = 'now' | 'at' | 'by';
+export type TierWhen = 'now' | 'within' | 'by' | 'at';
 export type CostUnit = 'mo' | 'yr' | 'egg';
 export const LIMITS: Limits = defaults.limits;
 /** Map on wide screens, list on phones — until you pick one (remembered). */
@@ -141,6 +141,7 @@ class AppState {
   minTier = $state(0); // only cities where you could live at least this tier…
   minTierWhen = $state<TierWhen>('now'); // …today, at your retirement age, or by a given age
   minTierByAge = $state(55);
+  minTierWithin = $state(5); // years
 
   // --- view ---
   mode = $state<Mode>('at');
@@ -261,7 +262,7 @@ class AppState {
     const spendAbroad = affordableMonthly(at.portfolio, this.healthAbroad, at.age, a, at.taxRate);
     const nowUS = affordableMonthly(now.portfolio, this.healthUS, now.age, a, now.taxRate);
     const nowAbroad = affordableMonthly(now.portfolio, this.healthAbroad, now.age, a, now.taxRate);
-    const tierBy = this.minTierWhen === 'now' ? this.age : this.minTierWhen === 'at' ? this.retireAge : this.minTierByAge;
+    const tierBy = this.tierDeadline;
     const only = new Set(this.only);
     const never = new Set(this.never);
     const out = new Map<string, CityResult>();
@@ -331,6 +332,17 @@ class AppState {
     }
     return { shown, byTier, retirable: shown - byTier[0], soonest, soonestCount };
   });
+
+  /** Latest age the lifestyle filter accepts. */
+  tierDeadline = $derived(
+    this.minTierWhen === 'now'
+      ? this.age
+      : this.minTierWhen === 'within'
+        ? this.age + this.minTierWithin
+        : this.minTierWhen === 'at'
+          ? this.retireAge
+          : this.minTierByAge,
+  );
 
   filtersActive = $derived(
     this.only.length +
@@ -469,7 +481,8 @@ const FIELDS: Field[] = [
   field('clim', () => app.minClimate, (v) => (app.minClimate = v), clamped(0, 100, 0), 0),
   field('pop', () => app.minPop, (v) => (app.minPop = v), clamped(0, 1e8, 0), 0),
   field('mintier', () => app.minTier, (v) => (app.minTier = Math.round(v)), clamped(0, TIERS.length - 1, 0), 0),
-  field('tierwhen', () => app.minTierWhen, (v) => (app.minTierWhen = v), (r): TierWhen => (r === 'at' || r === 'by' ? r : 'now'), 'now' as TierWhen),
+  field('tierwhen', () => app.minTierWhen, (v) => (app.minTierWhen = v), (r): TierWhen => (r === 'at' || r === 'by' || r === 'within' ? r : 'now'), 'now' as TierWhen),
+  field('tierin', () => app.minTierWithin, (v) => (app.minTierWithin = Math.round(v)), clamped(0, 80, 5), 5),
   field('tierby', () => app.minTierByAge, (v) => (app.minTierByAge = Math.round(v)), clamped(18, 100, 55), 55),
   listField('cols', () => app.columns, (v) => (app.columns = v), (s) => COLUMNS.some((c) => c.id === s), DEFAULT_COLUMNS),
   field('view', () => app.tab, (v) => (app.tab = v), (r): Tab => (r === 'list' ? 'list' : 'map'), DEFAULT_TAB),
@@ -479,7 +492,7 @@ const FIELDS: Field[] = [
   field('city', () => app.selectedCityId, (v) => (app.selectedCityId = v), (r) => (cityById.has(r) ? r : null), null as string | null),
 ];
 
-const FILTER_KEYS = new Set(['only', 'never', 'qol', 'safe', 'hc', 'poll', 'clim', 'pop', 'mintier', 'tierwhen', 'tierby']);
+const FILTER_KEYS = new Set(['only', 'never', 'qol', 'safe', 'hc', 'poll', 'clim', 'pop', 'mintier', 'tierwhen', 'tierby', 'tierin']);
 
 const LEGACY_INTO: Record<string, ContribKey> = { traditional: 'k401', roth: 'rothIra', brokerage: 'brokerage', cash: 'cash' };
 

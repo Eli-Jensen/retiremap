@@ -17,6 +17,7 @@
   <div
     class="pointer-events-auto max-h-[70vh] w-full space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur sm:max-h-[calc(100vh-2rem)] sm:w-80"
     role="dialog"
+    data-city-card
     aria-label="{city.name} details"
   >
     <div class="flex items-start justify-between gap-2">

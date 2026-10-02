@@ -152,10 +152,14 @@ once or twice a year:
    $3M saved → Antalya, Querétaro, Cuenca… (153 cities).
 5. Saving this year: defaults never exceed IRS caps (no amber warning); type
    $40k into Traditional 401(k) as a single → warning, overflow to brokerage.
-6. Reload with a bare URL → everything you entered comes back. Open a link
+6. "Try: Live well within 5 years" → list of cities where living well is
+   reachable by age+5, soonest first, Living well column first. City card
+   closes on any click off it (empty map, list strip, sidebar) but not on a
+   map drag.
+7. Reload with a bare URL → everything you entered comes back. Open a link
    with a different plan → amber "shared plan" banner, your saved plan
    untouched until you edit; "Switch to my plan" restores it.
-7. 375 px wide: list default, inputs collapse to a summary (shows filter
+8. 375 px wide: list default, inputs collapse to a summary (shows filter
    count), table scrolls sideways with the city column pinned, no page-level
    horizontal scroll.
 

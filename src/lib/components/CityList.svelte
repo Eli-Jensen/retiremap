@@ -34,7 +34,8 @@
   // The column you sort by sits right after the city name, shown even if you'd hidden it.
   const visibleCols = $derived.by(() => {
     const cols = COLUMNS.filter((c) => app.columns.includes(c.id));
-    const key = app.sort === 'best' ? (app.mode === 'when' ? `t${app.targetTier}` : 'at') : app.sort;
+    const bestTier = app.minTier > 0 ? app.minTier : app.mode === 'when' ? app.targetTier : 0;
+    const key = app.sort === 'best' ? (bestTier > 0 ? `t${bestTier}` : 'at') : app.sort;
     const sorted = COLUMNS.find((c) => c.id === key);
     return sorted ? [sorted, ...cols.filter((c) => c.id !== sorted.id)] : cols;
   });
@@ -46,8 +47,10 @@
     const key: SortKey = app.sort;
     if (key === 'name') return list.sort((a, b) => a.name.localeCompare(b.name) * (app.sortDesc ? -1 : 1));
     // "Best" = soonest to reach your target tier (when mode), else the richest life at your retirement age.
-    const soonest: [(c: CityRecord, r: CityResult) => number | null, boolean] = [(_c, r) => r.years[app.targetTier], false];
-    const [get, naturalDesc] = key === 'best' ? (app.mode === 'when' ? soonest : value.at) : value[key];
+    // With a lifestyle filter on, "best" = soonest to reach that lifestyle.
+    const bestTier = app.minTier > 0 ? app.minTier : app.mode === 'when' ? app.targetTier : 0;
+    const soonest: [(c: CityRecord, r: CityResult) => number | null, boolean] = [(_c, r) => r.years[bestTier], false];
+    const [get, naturalDesc] = key === 'best' ? (bestTier > 0 ? soonest : value.at) : value[key];
     const dir = (naturalDesc ? -1 : 1) * (app.sortDesc ? -1 : 1);
     return list.sort((a, b) => {
       const va = get(a, res.get(a.id)!);
@@ -101,7 +104,15 @@
     { key: 'egg', label: 'Savings needed' },
   ];
   const sortOptions = $derived([
-    { key: 'best' as SortKey, label: app.mode === 'when' ? `Soonest to ${TIERS[app.targetTier].verb}` : `Best at ${app.retireAge}` },
+    {
+      key: 'best' as SortKey,
+      label:
+        app.minTier > 0
+          ? `Soonest to ${TIERS[app.minTier].verb}`
+          : app.mode === 'when'
+            ? `Soonest to ${TIERS[app.targetTier].verb}`
+            : `Best at ${app.retireAge}`,
+    },
     { key: 'name' as SortKey, label: 'Name' },
     ...COLUMNS.map((c) => ({ key: c.id as SortKey, label: c.id === 'at' ? `Lifestyle at ${app.retireAge}` : c.id === 'now' ? 'Lifestyle today' : /^t\d$/.test(c.id) ? `Cheapest to live ${c.label.toLowerCase()}` : c.label })),
   ]);

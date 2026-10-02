@@ -19,9 +19,11 @@
     // Filtered-out dots are transparent but still in the layer; skip them.
     const hit = (e: maplibregl.MapLayerMouseEvent) =>
       e.features?.map((f) => f.properties?.cityId as string).find((id) => app.results.get(id)?.visible);
-    m.on('click', LAYER_ID, (e) => {
-      const cityId = hit(e);
-      if (cityId) app.selectedCityId = cityId === app.selectedCityId ? null : cityId;
+    // MapLibre only fires 'click' for real clicks, not drags, so panning keeps the card open.
+    m.on('click', (e) => {
+      const ids = m.queryRenderedFeatures(e.point, { layers: [LAYER_ID] }).map((f) => f.properties?.cityId as string);
+      const cityId = ids.find((id) => app.results.get(id)?.visible);
+      app.selectedCityId = cityId && cityId !== app.selectedCityId ? cityId : null;
     });
     m.on('mousemove', LAYER_ID, (e) => (m.getCanvas().style.cursor = hit(e) ? 'pointer' : ''));
     m.on('mouseleave', LAYER_ID, () => (m.getCanvas().style.cursor = ''));

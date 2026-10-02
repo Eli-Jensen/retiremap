@@ -129,6 +129,19 @@ describe('lifestyle filter', () => {
   });
 });
 
+describe('"live well within 5 years"', () => {
+  it('keeps exactly the cities where living well is reachable in ≤ 5 years', () => {
+    readHash('#mintier=4&tierwhen=within&tierin=5');
+    expect(app.tierDeadline).toBe(app.age + 5);
+    const res = app.results;
+    for (const c of cities) {
+      const y = res.get(c.id)!.years[4];
+      expect(res.get(c.id)!.visible, c.id).toBe(y !== null && y <= 5);
+    }
+    readHash('');
+  });
+});
+
 describe('place filters', () => {
   it('"only" keeps matching places; "never" wins over "only"', () => {
     readHash('#only=europe&never=c-pt');

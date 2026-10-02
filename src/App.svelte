@@ -52,11 +52,22 @@
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !app.methodsOpen) app.selectedCityId = null;
     };
+    // Clicking anywhere off the city card closes it. The map handles its own
+    // clicks (a dot opens another city, empty map closes); list rows reopen
+    // their city on click, after this pointerdown.
+    const onPointerDown = (e: PointerEvent) => {
+      if (!app.selectedCityId) return;
+      const t = e.target as Element | null;
+      if (t?.closest('[data-city-card], .maplibregl-map, dialog')) return;
+      app.selectedCityId = null;
+    };
     window.addEventListener('hashchange', onHash);
     window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onPointerDown, true);
     return () => {
       window.removeEventListener('hashchange', onHash);
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onPointerDown, true);
     };
   });
 </script>
