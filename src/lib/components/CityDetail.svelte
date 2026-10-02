@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { app, placeById, flagEmoji, fmtUsd, fmtUsdCompact, fmtPct, fmtPercentile, TARGET_TIERS } from '../state.svelte.ts';
+  import { app, placeById, flagEmoji, fmtUsd, fmtUsdCompact, fmtCompact, fmtPct, fmtPercentile, TARGET_TIERS } from '../state.svelte.ts';
   import { TIERS, HOUSEHOLD_SCALE, localReference, tierSpend } from '../math/tiers.ts';
   import { CLASS_COLORS } from '../math/color.ts';
+  import { METRICS } from '../metrics.ts';
 
   const city = $derived(app.selectedCity);
   const r = $derived(city ? app.results.get(city.id) : undefined);
@@ -23,7 +24,9 @@
     <div class="flex items-start justify-between gap-2">
       <div>
         <h2 class="font-bold leading-tight text-slate-900">{flagEmoji(city.iso2)} {city.name}</h2>
-        <p class="text-[11px] text-slate-500">{city.admin ? `${city.admin}, ` : ''}{city.country} · {regionLabel}</p>
+        <p class="text-[11px] text-slate-500">
+          {city.admin ? `${city.admin}, ` : ''}{city.country} · {regionLabel}{#if city.pop} · pop. {fmtCompact(city.pop)}{/if}
+        </p>
       </div>
       <button class="-m-1 p-1 text-slate-400 hover:text-slate-700" aria-label="Close" onclick={() => (app.selectedCityId = null)}>✕</button>
     </div>
@@ -127,22 +130,20 @@
       {/if}
     </div>
 
-    {#if city.qol}
-      <div class="space-y-1">
-        <div class="flex items-baseline justify-between">
-          <span class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Quality of life</span>
-          <b class="text-sm tabular-nums text-slate-900">{Math.round(city.qol.index)}</b>
-        </div>
-        <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs tabular-nums text-slate-600">
-          <span>Safety</span><span class="text-right">{Math.round(city.qol.safety)}</span>
-          <span>Health care</span><span class="text-right">{Math.round(city.qol.healthCare)}</span>
-          <span>Pollution <span class="text-slate-400">(lower = better)</span></span><span class="text-right">{Math.round(city.qol.pollution)}</span>
-          {#if city.qol.climate}<span>Climate</span><span class="text-right">{Math.round(city.qol.climate)}</span>{/if}
-        </div>
+    <div class="space-y-1">
+      <div class="flex items-baseline justify-between">
+        <span class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Quality of life</span>
+        <b class="text-sm tabular-nums text-slate-900">{city.qol ? Math.round(city.qol.index) : '—'}</b>
       </div>
-    {:else}
-      <p class="text-xs text-slate-400">Numbeo has no quality-of-life score for {city.name}.</p>
-    {/if}
+      <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs tabular-nums text-slate-600">
+        {#each METRICS.filter((m) => m.id !== 'qol' && m.id !== 'pop') as m (m.id)}
+          {@const v = m.get(city)}
+          <span>{m.label}{#if !m.higherIsBetter}<span class="text-slate-400"> ↓</span>{/if}</span>
+          <span class="text-right">{v === null ? '—' : Math.round(v)}</span>
+        {/each}
+      </div>
+      <p class="text-[11px] text-slate-400">Numbeo indexes; prices with New York = 100; ↓ = lower is better.</p>
+    </div>
 
     <div class="flex gap-2 text-[11px]">
       <button class="flex-1 rounded-md border border-slate-200 py-1 text-slate-600 hover:bg-slate-50" onclick={() => app.setPlace(countryId, 'only')}>

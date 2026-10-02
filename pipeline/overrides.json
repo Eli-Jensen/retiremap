@@ -1,4 +1,10 @@
 {
-  "_comment": "Manual match fixes, keyed by the exact Numbeo raw city string. Value: {geonameid} to pin a cities15000 row, {lat,lng,iso2} literal, or {skip:true}.",
-  "Bali, Indonesia": { "lat": -8.65, "lng": 115.2167, "iso2": "ID", "note": "Bali is an island; Numbeo means the Denpasar area" }
+  "_comment": "Manual match fixes, keyed by the exact Numbeo raw city string. Value: {geonameid} to pin a cities15000 row, {lat,lng,iso2[,pop]} literal, or {skip:true}.",
+  "Bali, Indonesia": {
+    "lat": -8.65,
+    "lng": 115.2167,
+    "iso2": "ID",
+    "pop": 4317404,
+    "note": "Bali is an island; Numbeo means the Denpasar area. Population: Bali province, 2020 census (Statistics Indonesia)."
+  }
 }

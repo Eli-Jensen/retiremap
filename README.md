@@ -25,7 +25,10 @@ The list shows the age for *every* tier per city, with selectable columns
 and sorting. Filter by place — "only"/"never" any continent, UN M49
 sub-region (Southeast Asia…), group (EU, Middle East), or country — and by
 Numbeo quality of life, safety, health care, pollution, climate, city size,
-or minimum tier. Every input starts at a cited, data-backed default
+or minimum tier. Index filters/columns come from one registry
+(`src/lib/metrics.ts`): quality of life, safety (383 cities), health care
+(331), climate, pollution, rent, groceries, restaurants, local purchasing
+power, population (city proper, every city). Every input starts at a cited, data-backed default
 (`src/data/defaults.json`) — from a **FIRE saver** starting point by default
 (median r/financialindependence survey respondent still accumulating: 35,
 couple, retiring at 48, ~$613k across accounts, saving ~$101k/yr) or a
@@ -106,6 +109,16 @@ once or twice a year:
    - <https://www.numbeo.com/quality-of-life/rankings_current.jsp> →
      `pipeline/raw/numbeo-qol.csv` (Rank, City, Quality of Life Index,
      Safety Index, Health Care Index, Pollution Index, Climate Index).
+   - Per-topic rankings (each widens coverage beyond the QoL table), saved as
+     `name|index` lines: <https://www.numbeo.com/crime/rankings_current.jsp>
+     → `pipeline/raw/numbeo-crime.psv` (Safety Index column);
+     <https://www.numbeo.com/health-care/rankings_current.jsp> →
+     `pipeline/raw/numbeo-health.psv` (Health Care Index). Optional — the
+     pipeline falls back to the QoL table's copies.
+   - ⚠️ Numbeo's free tier has a **monthly page limit** (hit on 2026-10-01
+     after ~35 page views; resets on the 1st). Budget a refresh: the two
+     rankings tables + the per-topic tables + ~12 city pages for the anchors.
+     Pollution, traffic and property tables weren't captured for that reason.
 2. **Salary & basics anchors** — open NYC and the validation cities in
    `pipeline/salary-anchor.json` on Numbeo (display currency USD) and update
    "Average Monthly Net Salary (After Tax)" and "estimated monthly costs for a

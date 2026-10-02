@@ -1,6 +1,8 @@
 <script lang="ts">
   import { app, cities, places, placeById, flagEmoji } from '../state.svelte.ts';
   import type { Place } from '../types.ts';
+  import { METRICS } from '../metrics.ts';
+  import type { Metric } from '../metrics.ts';
 
   let query = $state('');
   let focused = $state(false);
@@ -41,19 +43,22 @@
     } else if (e.key === 'Escape') query = '';
   }
 
-  const rated = cities.filter((c) => c.qol).length;
-  const sliders = [
-    { label: 'Quality of life', get: () => app.minQol, set: (v: number) => (app.minQol = v), max: 200, step: 10, hint: 'New York 136 · Lisbon 156 · Vienna 207' },
-    { label: 'Safety', get: () => app.minSafety, set: (v: number) => (app.minSafety = v), max: 90, step: 5, hint: '' },
-    { label: 'Health care', get: () => app.minHealthCare, set: (v: number) => (app.minHealthCare = v), max: 90, step: 5, hint: '' },
-    { label: 'Climate', get: () => app.minClimate, set: (v: number) => (app.minClimate = v), max: 100, step: 5, hint: '' },
-  ];
+  // Index sliders: the "any" end is the worst value, so dragging toward better tightens the filter.
+  const sliderMetrics = METRICS.filter((m) => m.id !== 'pop');
+  const groups = [...new Set(sliderMetrics.map((m) => m.group))].map((g) => ({ name: g, metrics: sliderMetrics.filter((m) => m.group === g) }));
+  const coverage = Object.fromEntries(METRICS.map((m) => [m.id, cities.filter((c) => m.get(c) !== null).length]));
+  const anyEnd = (m: Metric) => (m.higherIsBetter ? m.min : m.max);
+  const sliderValue = (m: Metric) => app.metricLimits[m.id] ?? anyEnd(m);
+  function onSlide(m: Metric, v: number) {
+    app.setLimit(m.id, v === anyEnd(m) ? null : v);
+  }
   const POPS = [
     { v: 0, label: 'Any size' },
     { v: 100_000, label: '100k+' },
     { v: 500_000, label: '500k+' },
     { v: 1_000_000, label: '1M+' },
   ];
+  const limitCount = $derived(Object.keys(app.metricLimits).length);
   const chip = 'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs';
 </script>
 
@@ -127,34 +132,53 @@
     </div>
   {/if}
 
-  <details class="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2" open={app.filtersActive > app.only.length + app.never.length}>
+  <details class="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2" open={limitCount > 0}>
     <summary class="cursor-pointer select-none text-xs font-medium text-slate-600">
-      More filters <span class="font-normal text-slate-400">· quality of life, safety, climate, size</span>
+      Livability &amp; price filters
+      <span class="font-normal text-slate-400">
+        {limitCount > 0 ? `· ${limitCount} on` : '· safety, health care, climate, rent, groceries…'}
+      </span>
     </summary>
-    <div class="mt-3 space-y-3 text-xs text-slate-600">
-      {#each sliders as sl (sl.label)}
-        <label class="block space-y-1">
-          <span class="flex justify-between"><span>{sl.label} at least</span><b class="tabular-nums">{sl.get() === 0 ? 'any' : sl.get()}</b></span>
-          <input type="range" min="0" max={sl.max} step={sl.step} class="w-full accent-blue-600" value={sl.get()} oninput={(e) => sl.set(Number(e.currentTarget.value))} />
-          {#if sl.hint}<span class="block text-[11px] text-slate-400">{sl.hint}</span>{/if}
-        </label>
+    <div class="mt-3 space-y-4 text-xs text-slate-600">
+      {#each groups as g (g.name)}
+        <div class="space-y-3">
+          <h3 class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{g.name}</h3>
+          {#each g.metrics as m (m.id)}
+            {@const on = app.metricLimits[m.id] !== undefined}
+            <label class="block space-y-1">
+              <span class="flex justify-between gap-2">
+                <span>{m.label} <span class="text-slate-400">· {coverage[m.id]} cities rated</span></span>
+                <b class="tabular-nums {on ? 'text-blue-700' : ''}">{on ? `${m.higherIsBetter ? '≥' : '≤'} ${app.metricLimits[m.id]}` : 'any'}</b>
+              </span>
+              <input
+                type="range"
+                min={m.min}
+                max={m.max}
+                step={m.step}
+                class="w-full accent-blue-600 {on ? '' : 'opacity-40'}"
+                value={sliderValue(m)}
+                oninput={(e) => onSlide(m, Number(e.currentTarget.value))}
+              />
+              <span class="block text-[11px] text-slate-400">{m.hint}</span>
+            </label>
+          {/each}
+        </div>
       {/each}
-      <label class="block space-y-1">
-        <span class="flex justify-between"><span>Pollution at most</span><b class="tabular-nums">{app.maxPollution >= 100 ? 'any' : app.maxPollution}</b></span>
-        <input type="range" min="10" max="100" step="5" class="w-full accent-blue-600" bind:value={app.maxPollution} />
-      </label>
-      <p class="text-[11px] text-slate-400">
-        Numbeo indexes; {cities.length - rated} of {cities.length} cities aren't rated and drop out once any of these is set.
-      </p>
       <div class="flex items-center justify-between gap-2">
         <span>City size</span>
         <div class="flex rounded-md border border-slate-300 bg-white p-0.5">
           {#each POPS as p (p.v)}
-            <button class="rounded px-1.5 py-0.5 text-[11px] {app.minPop === p.v ? 'bg-slate-800 text-white' : 'text-slate-600'}" onclick={() => (app.minPop = p.v)}>{p.label}</button>
+            <button
+              class="rounded px-1.5 py-0.5 text-[11px] {(app.metricLimits.pop ?? 0) === p.v ? 'bg-slate-800 text-white' : 'text-slate-600'}"
+              onclick={() => app.setLimit('pop', p.v || null)}>{p.label}</button
+            >
           {/each}
         </div>
       </div>
-
+      <p class="text-[11px] text-slate-400">
+        Numbeo indexes, crowd-sourced. Cities without a rating drop out once that filter is set. Every index can also be a
+        list column (Columns ▾).
+      </p>
     </div>
   </details>
 </section>

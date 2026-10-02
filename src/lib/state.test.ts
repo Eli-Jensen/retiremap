@@ -142,6 +142,39 @@ describe('"live well within 5 years"', () => {
   });
 });
 
+describe('index filters', () => {
+  it('"at least" for higher-is-better, "at most" for lower-is-better; unrated cities drop out', () => {
+    readHash('#safe=70&rent=30');
+    expect(app.metricLimits).toEqual({ safety: 70, rent: 30 });
+    const res = app.results;
+    for (const c of cities) {
+      const ok = c.safety !== undefined && c.safety >= 70 && c.rent <= 30;
+      expect(res.get(c.id)!.visible, c.id).toBe(ok);
+    }
+    expect(writeHash()).toContain('safe=70');
+    readHash('');
+    expect(app.metricLimits).toEqual({});
+  });
+  it('safety now covers more cities than the Quality of Life table', () => {
+    const rated = cities.filter((c) => c.qol).length;
+    expect(cities.filter((c) => c.safety !== undefined).length).toBeGreaterThan(rated + 50);
+    expect(cities.filter((c) => c.healthCare !== undefined).length).toBeGreaterThan(rated);
+  });
+  it('every city has a population, and population is a default, sortable column', async () => {
+    expect(cities.every((c) => (c.pop ?? 0) > 0)).toBe(true);
+    const { DEFAULT_COLUMNS, COLUMNS } = await import('./state.svelte.ts');
+    expect(DEFAULT_COLUMNS).toContain('pop');
+    expect(COLUMNS.some((c) => c.id === 'pop')).toBe(true);
+  });
+  it('clearFilters removes index limits too', () => {
+    readHash('#hc=60&poll=40&pop=500000&never=africa');
+    expect(app.filtersActive).toBe(4);
+    app.clearFilters();
+    expect(app.filtersActive).toBe(0);
+    readHash('');
+  });
+});
+
 describe('place filters', () => {
   it('"only" keeps matching places; "never" wins over "only"', () => {
     readHash('#only=europe&never=c-pt');

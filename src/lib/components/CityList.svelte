@@ -4,6 +4,8 @@
   import type { CityRecord } from '../types.ts';
   import { TIERS, HOUSEHOLD_SCALE, localReference } from '../math/tiers.ts';
   import { CLASS_COLORS } from '../math/color.ts';
+  import { METRICS } from '../metrics.ts';
+  import type { MetricId } from '../metrics.ts';
 
   const PAGE = 80;
   let limit = $state(PAGE);
@@ -22,13 +24,11 @@
     t3: [(_c, r) => r.costs[3], false],
     t4: [(_c, r) => r.costs[4], false],
     t5: [(_c, r) => r.costs[5], false],
-    qol: [(c) => c.qol?.index ?? null, true],
-    safety: [(c) => c.qol?.safety ?? null, true],
-    healthCare: [(c) => c.qol?.healthCare ?? null, true],
-    pollution: [(c) => c.qol?.pollution ?? null, false],
-    climate: [(c) => c.qol?.climate ?? null, true],
+    ...(Object.fromEntries(METRICS.map((m) => [m.id, [(c: CityRecord) => m.get(c), m.higherIsBetter]])) as unknown as Record<
+      MetricId,
+      [(c: CityRecord, r: CityResult) => number | null, boolean]
+    >),
     salary: [(c) => localReference(c), false],
-    pop: [(c) => c.pop ?? null, true],
   };
 
   // The column you sort by sits right after the city name, shown even if you'd hidden it.

@@ -43,6 +43,23 @@ if (!existsSync(qolPath)) {
   process.exit(1);
 }
 const qolByName = parseNumbeoQol(readFileSync(qolPath, 'utf8'));
+// Per-topic rankings (name|index), read from the same manual page views.
+const topic = (file: string): Map<string, number> => {
+  const path = raw(file);
+  if (!existsSync(path)) {
+    console.warn(`(optional) ${file} missing — falling back to the Quality of Life table`);
+    return new Map();
+  }
+  const out = new Map<string, number>();
+  for (const line of readFileSync(path, 'utf8').split('\n')) {
+    const [name, v] = line.split('|');
+    const n = Number.parseFloat(v);
+    if (name && Number.isFinite(n)) out.set(name.trim(), n);
+  }
+  return out;
+};
+const safetyByName = topic('numbeo-crime.psv'); // Safety Index column
+const healthByName = topic('numbeo-health.psv'); // Health Care Index column
 const anchor: {
   date: string;
   nycNet: number;
@@ -112,7 +129,7 @@ for (const r of results) {
   if (r.status === 'unmatched') continue;
   if (r.status === 'override' && 'skip' in r.override) continue;
   const geo = r.geo;
-  const literal = r.status === 'override' && !geo ? (r.override as { lat: number; lng: number; iso2: string }) : null;
+  const literal = r.status === 'override' && !geo ? (r.override as { lat: number; lng: number; iso2: string; pop?: number }) : null;
   const iso2 = geo?.iso2 ?? literal!.iso2;
   const record: CityRecord = {
     id: [slugify(r.row.city), r.row.adminHint && iso2 === 'US' ? r.row.adminHint.toLowerCase() : '', iso2.toLowerCase()]
@@ -125,7 +142,7 @@ for (const r of results) {
     places: placesFor(iso2, r.row.country, m49, placeDefs),
     lat: geo?.lat ?? literal!.lat,
     lng: geo?.lng ?? literal!.lng,
-    ...(geo?.population ? { pop: geo.population } : {}),
+    ...(geo?.population ? { pop: geo.population } : literal?.pop ? { pop: literal.pop } : {}),
     col: r.row.col,
     rent: r.row.rent,
     colRent: r.row.colRent,
@@ -135,6 +152,8 @@ for (const r of results) {
     salary: salaryOf(r.row.purchasingPower, r.row.colRent),
     basics: basicsOf(r.row.col),
   };
+  const safety = safetyByName.get(r.row.rawName);
+  const health = healthByName.get(r.row.rawName);
   const q = qolByName.get(r.row.rawName);
   if (q) {
     record.qol = {
@@ -145,6 +164,10 @@ for (const r of results) {
       ...(q.climate !== undefined ? { climate: q.climate } : {}),
     };
   }
+  const bestSafety = safety ?? q?.safety;
+  const bestHealth = health ?? q?.healthCare;
+  if (bestSafety !== undefined) record.safety = bestSafety;
+  if (bestHealth !== undefined) record.healthCare = bestHealth;
   cities.push(record);
 }
 
@@ -227,6 +250,7 @@ if (report.unmatched.length) console.log(`UNMATCHED (${report.unmatched.length})
 console.log(`Places: ${places.filter((p) => p.kind !== 'country').map((p) => `${p.label} ${p.count}`).join(', ')}`);
 const qolJoined = cities.filter((c) => c.qol).length;
 console.log(`QoL: ${qolJoined}/${cities.length} cities rated (${qolByName.size} rows in the QoL table)`);
+console.log(`Safety: ${cities.filter((c) => c.safety !== undefined).length} cities · Health care: ${cities.filter((c) => c.healthCare !== undefined).length} cities`);
 const qolOrphans = [...qolByName.keys()].filter((n) => !rowByName.has(n));
 if (qolOrphans.length) console.log(`QoL rows with no cost-table city (ignored): ${qolOrphans.join('; ')}`);
 console.log(`Salary calibration k=${calibration.toFixed(4)}, mean |err| ${(meanAbsError * 100).toFixed(1)}% over ${salaryErrors.length} cities:`);
@@ -247,6 +271,7 @@ if (meanAbsError > 0.05) failures.push(`salary derivation mean |err| ${(meanAbsE
 if (basicsMeanAbsError > 0.1) failures.push(`basics mean |err| ${(basicsMeanAbsError * 100).toFixed(1)}% > 10%`);
 if (qolJoined < 250) failures.push(`only ${qolJoined} cities have QoL (< 250)`);
 for (const c of cities) if (!(c.salary > 50)) failures.push(`${c.id}.salary = ${c.salary}`);
+for (const c of cities) if (!(c.pop && c.pop > 0)) failures.push(`${c.id} has no population — add "pop" to its override`);
 for (const k of ['col', 'colRent'] as const) {
   if (usRefIndex[k] < 55 || usRefIndex[k] > 90) failures.push(`usRefIndex.${k} = ${usRefIndex[k]} outside [55,90]`);
 }

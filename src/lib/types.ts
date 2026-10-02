@@ -22,6 +22,10 @@ export type CityRecord = {
   // Numbeo-estimated monthly costs for one person excluding rent, USD.
   basics: number;
   qol?: QualityOfLife; // absent when Numbeo doesn't rate the city
+  // Best available single indexes: Numbeo's per-topic rankings (more cities
+  // than the Quality of Life table), falling back to the QoL table's copy.
+  safety?: number;
+  healthCare?: number;
 };
 
 export type PlaceKind = 'continent' | 'subregion' | 'group' | 'country';

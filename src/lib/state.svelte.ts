@@ -8,6 +8,8 @@ import type { Assumptions, Buckets, ContribKey, Contributions, Health, Limits, N
 import { estimateSocialSecurity } from './math/socialSecurity.ts';
 import { TIERS, tierIndex, localRatio, localReference, tierSpend } from './math/tiers.ts';
 import type { Household } from './math/tiers.ts';
+import { METRICS, passes } from './metrics.ts';
+import type { MetricId } from './metrics.ts';
 import citiesJson from '../data/cities.json';
 import metaJson from '../data/meta.json';
 import decilesJson from '../data/spendingDeciles.json';
@@ -75,20 +77,15 @@ export function whenClass(years: number | null): number {
 
 // --- list columns ---
 
-export type ColumnId = 'now' | 'at' | `t${1 | 2 | 3 | 4 | 5}` | 'qol' | 'safety' | 'healthCare' | 'pollution' | 'climate' | 'salary' | 'pop';
+export type ColumnId = 'now' | 'at' | `t${1 | 2 | 3 | 4 | 5}` | 'salary' | MetricId;
 export const COLUMNS: { id: ColumnId; label: string; short?: string }[] = [
   { id: 'now', label: 'Retire today' },
   { id: 'at', label: 'At your retirement age' },
   ...TARGET_TIERS.map((t) => ({ id: `t${t}` as ColumnId, label: TIERS[t].label })),
-  { id: 'qol', label: 'Quality of life', short: 'QoL' },
-  { id: 'safety', label: 'Safety' },
-  { id: 'healthCare', label: 'Health care', short: 'Health' },
-  { id: 'pollution', label: 'Pollution' },
-  { id: 'climate', label: 'Climate' },
+  ...METRICS.map((m) => ({ id: m.id as ColumnId, label: m.label, short: m.short })),
   { id: 'salary', label: 'Local salary', short: 'Salary' },
-  { id: 'pop', label: 'Population', short: 'Pop.' },
 ];
-export const DEFAULT_COLUMNS: ColumnId[] = ['now', 'at', 't1', 't2', 't3', 't4', 't5', 'qol'];
+export const DEFAULT_COLUMNS: ColumnId[] = ['now', 'at', 't1', 't2', 't3', 't4', 't5', 'qol', 'pop'];
 export type SortKey = 'best' | 'name' | ColumnId;
 
 class AppState {
@@ -132,12 +129,7 @@ class AppState {
   // --- filters ---
   only = $state<string[]>([]); // place ids; empty = everywhere
   never = $state<string[]>([]);
-  minQol = $state(0);
-  minSafety = $state(0);
-  minHealthCare = $state(0);
-  maxPollution = $state(100);
-  minClimate = $state(0);
-  minPop = $state(0);
+  metricLimits = $state<Partial<Record<MetricId, number>>>({}); // e.g. { safety: 60, rent: 40 }
   minTier = $state(0); // only cities where you could live at least this tier…
   minTierWhen = $state<TierWhen>('now'); // …today, at your retirement age, or by a given age
   minTierByAge = $state(55);
@@ -264,6 +256,7 @@ class AppState {
     const nowAbroad = affordableMonthly(now.portfolio, this.healthAbroad, now.age, a, now.taxRate);
     const tierBy = this.tierDeadline;
     const only = new Set(this.only);
+    const limits = this.metricLimits;
     const never = new Set(this.never);
     const out = new Map<string, CityResult>();
     for (const c of cities) {
@@ -283,16 +276,10 @@ class AppState {
         years[t] = yearsToRetireFrom(costs[t], health, proj, a);
         nestEggs[t] = need(costs[t], health, at.age, a, at.taxRate).total;
       }
-      const q = c.qol;
       const visible =
         (only.size === 0 || c.places.some((p) => only.has(p))) &&
         !c.places.some((p) => never.has(p)) &&
-        (this.minQol <= 0 || (q?.index ?? 0) >= this.minQol) &&
-        (this.minSafety <= 0 || (q?.safety ?? 0) >= this.minSafety) &&
-        (this.minHealthCare <= 0 || (q?.healthCare ?? 0) >= this.minHealthCare) &&
-        (this.maxPollution >= 100 || (q !== undefined && q.pollution <= this.maxPollution)) &&
-        (this.minClimate <= 0 || (q?.climate ?? 0) >= this.minClimate) &&
-        (this.minPop <= 0 || (c.pop ?? 0) >= this.minPop) &&
+        METRICS.every((m) => passes(m, c, limits[m.id])) &&
         (this.minTier <= 0 || (years[this.minTier] !== null && this.age + years[this.minTier]! <= tierBy));
       out.set(c.id, {
         health,
@@ -347,12 +334,7 @@ class AppState {
   filtersActive = $derived(
     this.only.length +
       this.never.length +
-      Number(this.minQol > 0) +
-      Number(this.minSafety > 0) +
-      Number(this.minHealthCare > 0) +
-      Number(this.maxPollution < 100) +
-      Number(this.minClimate > 0) +
-      Number(this.minPop > 0) +
+      Object.keys(this.metricLimits).length +
       Number(this.minTier > 0),
   );
 
@@ -374,6 +356,14 @@ class AppState {
   /** Cost-adjusted US spending percentile of a monthly budget in a city. */
   usPercentile(monthlySpend: number, c: CityRecord): number {
     return curve.spendToPercentile(equivAnnualUS(monthlySpend, c.colRent, meta.usRefIndex.colRent));
+  }
+
+  /** Set or clear (null) one index filter. */
+  setLimit(id: MetricId, v: number | null) {
+    const next = { ...this.metricLimits };
+    if (v === null) delete next[id];
+    else next[id] = v;
+    this.metricLimits = next;
   }
 
   setPlace(id: string, list: 'only' | 'never' | null) {
@@ -474,12 +464,9 @@ const FIELDS: Field[] = [
   field('tier', () => app.targetTier, (v) => (app.targetTier = Math.round(v)), clamped(1, TIERS.length - 1, 2), 2),
   listField('only', () => app.only, (v) => (app.only = v), (s) => placeById.has(s), []),
   listField('never', () => app.never, (v) => (app.never = v), (s) => placeById.has(s), []),
-  field('qol', () => app.minQol, (v) => (app.minQol = v), clamped(0, 250, 0), 0),
-  field('safe', () => app.minSafety, (v) => (app.minSafety = v), clamped(0, 100, 0), 0),
-  field('hc', () => app.minHealthCare, (v) => (app.minHealthCare = v), clamped(0, 100, 0), 0),
-  field('poll', () => app.maxPollution, (v) => (app.maxPollution = v), clamped(0, 100, 100), 100),
-  field('clim', () => app.minClimate, (v) => (app.minClimate = v), clamped(0, 100, 0), 0),
-  field('pop', () => app.minPop, (v) => (app.minPop = v), clamped(0, 1e8, 0), 0),
+  ...METRICS.map((m) =>
+    field(m.hashKey, () => app.metricLimits[m.id] ?? null, (v) => app.setLimit(m.id, v), (r) => num(r), null as number | null),
+  ),
   field('mintier', () => app.minTier, (v) => (app.minTier = Math.round(v)), clamped(0, TIERS.length - 1, 0), 0),
   field('tierwhen', () => app.minTierWhen, (v) => (app.minTierWhen = v), (r): TierWhen => (r === 'at' || r === 'by' || r === 'within' ? r : 'now'), 'now' as TierWhen),
   field('tierin', () => app.minTierWithin, (v) => (app.minTierWithin = Math.round(v)), clamped(0, 80, 5), 5),
@@ -492,7 +479,7 @@ const FIELDS: Field[] = [
   field('city', () => app.selectedCityId, (v) => (app.selectedCityId = v), (r) => (cityById.has(r) ? r : null), null as string | null),
 ];
 
-const FILTER_KEYS = new Set(['only', 'never', 'qol', 'safe', 'hc', 'poll', 'clim', 'pop', 'mintier', 'tierwhen', 'tierby', 'tierin']);
+const FILTER_KEYS = new Set(['only', 'never', 'mintier', 'tierwhen', 'tierby', 'tierin', ...METRICS.map((m) => m.hashKey)]);
 
 const LEGACY_INTO: Record<string, ContribKey> = { traditional: 'k401', roth: 'rothIra', brokerage: 'brokerage', cash: 'cash' };
 
