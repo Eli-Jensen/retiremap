@@ -27,6 +27,14 @@ export type CityRecord = {
   safety?: number;
   healthCare?: number;
   climate?: Climate; // Open-Meteo (ERA5) averages; absent until fetched
+  usFlights?: UsFlights; // absent for cities in the US
+};
+
+/** Nonstop passenger flights to US hub airports from airports near a city. */
+export type UsFlights = {
+  yearRound: string[]; // US airport IATA codes
+  seasonal: string[]; // seasonal-only
+  via: { airport: string; km: number }[]; // nearby airports with US service
 };
 
 /** Climate averages over the fetched years. Temperatures °C, rain mm. */
@@ -61,6 +69,7 @@ export type Meta = {
   // Population-weighted mean index over US cities in the dataset; the
   // reference point that places any budget on the US spending-percentile curve.
   usRefIndex: { col: number; colRent: number };
+  flights?: { fetched: string; usAirports: { iata: string; name: string }[]; radiusKm: number };
   climate?: {
     firstYear: number;
     lastYear: number;

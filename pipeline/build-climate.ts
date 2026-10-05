@@ -6,10 +6,24 @@ import { join } from 'node:path';
 import type { Climate } from '../src/lib/types.ts';
 import type { YearClimate } from './fetch-climate.ts';
 
-export function loadClimate(dir: string, cityId: string): { climate: Climate; years: number[] } | undefined {
+/** Years fetched for a city. */
+export function climateYears(dir: string, cityId: string): number[] {
+  const cityDir = join(dir, cityId);
+  if (!existsSync(cityDir)) return [];
+  return readdirSync(cityDir)
+    .filter((f) => /^\d{4}\.json$/.test(f))
+    .map((f) => Number(f.slice(0, 4)));
+}
+
+/**
+ * Climate normals for a city. Pass `onlyYears` (the years every city has) so
+ * cities are compared over the same period while a multi-year fetch is
+ * still in progress.
+ */
+export function loadClimate(dir: string, cityId: string, onlyYears?: Set<number>): { climate: Climate; years: number[] } | undefined {
   const cityDir = join(dir, cityId);
   if (!existsSync(cityDir)) return undefined;
-  const files = readdirSync(cityDir).filter((f) => /^\d{4}\.json$/.test(f));
+  const files = readdirSync(cityDir).filter((f) => /^\d{4}\.json$/.test(f) && (!onlyYears || onlyYears.has(Number(f.slice(0, 4)))));
   if (files.length === 0) return undefined;
   const ys: YearClimate[] = files.map((f) => JSON.parse(readFileSync(join(cityDir, f), 'utf8')));
   const n = ys.length;

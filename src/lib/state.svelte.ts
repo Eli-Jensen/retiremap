@@ -37,6 +37,25 @@ const byAge = (brackets: { maxAge: number; value: number }[], age: number) => br
 
 export type Mode = 'at' | 'when';
 export type TierWhen = 'now' | 'within' | 'by' | 'at';
+export type FlightFilter = 'off' | 'any' | 'yr';
+export const US_AIRPORTS = meta.flights?.usAirports ?? [];
+const IN_US = new Set(['US', 'PR']);
+export const inUS = (c: CityRecord) => IN_US.has(c.iso2);
+
+/** US airports with nonstops near a city (year-round first); null for cities in the US. */
+export function usAirportsFor(c: CityRecord, includeSeasonal = true): string[] | null {
+  if (inUS(c)) return null;
+  const f = c.usFlights;
+  if (!f) return [];
+  return includeSeasonal ? [...f.yearRound, ...f.seasonal] : f.yearRound;
+}
+
+/** Cities in the US always pass: you're already there. */
+export function passesFlights(c: CityRecord, mode: FlightFilter, to: string | null): boolean {
+  if (mode === 'off' || inUS(c)) return true;
+  const list = usAirportsFor(c, mode === 'any')!;
+  return to ? list.includes(to) : list.length > 0;
+}
 export type CostUnit = 'mo' | 'yr' | 'egg';
 export const LIMITS: Limits = defaults.limits;
 /** Map on wide screens, list on phones — until you pick one (remembered). */
@@ -77,13 +96,14 @@ export function whenClass(years: number | null): number {
 
 // --- list columns ---
 
-export type ColumnId = 'now' | 'at' | `t${1 | 2 | 3 | 4 | 5}` | 'salary' | MetricId;
+export type ColumnId = 'now' | 'at' | `t${1 | 2 | 3 | 4 | 5}` | 'salary' | 'flights' | MetricId;
 export const COLUMNS: { id: ColumnId; label: string; short?: string }[] = [
   { id: 'now', label: 'Retire today' },
   { id: 'at', label: 'At your retirement age' },
   ...TARGET_TIERS.map((t) => ({ id: `t${t}` as ColumnId, label: TIERS[t].label })),
   ...METRICS.map((m) => ({ id: m.id as ColumnId, label: m.label, short: m.short })),
   { id: 'salary', label: 'Local salary', short: 'Salary' },
+  { id: 'flights', label: 'Nonstop US airports', short: 'US flights' },
 ];
 export const DEFAULT_COLUMNS: ColumnId[] = ['now', 'at', 't1', 't2', 't3', 't4', 't5', 'qol', 'pop'];
 export type SortKey = 'best' | 'name' | ColumnId;
@@ -130,6 +150,8 @@ class AppState {
   only = $state<string[]>([]); // place ids; empty = everywhere
   never = $state<string[]>([]);
   metricLimits = $state<Partial<Record<MetricId, number>>>({}); // e.g. { safety: 60, rent: 40 }
+  flights = $state<FlightFilter>('off'); // nonstop to the US: off | incl. seasonal | year-round
+  flightTo = $state<string | null>(null); // a specific US airport (IATA), or any
   minTier = $state(0); // only cities where you could live at least this tier…
   minTierWhen = $state<TierWhen>('now'); // …today, at your retirement age, or by a given age
   minTierByAge = $state(55);
@@ -281,6 +303,7 @@ class AppState {
         (only.size === 0 || c.places.some((p) => only.has(p))) &&
         !c.places.some((p) => never.has(p)) &&
         METRICS.every((m) => passes(m, c, limits[m.id])) &&
+        passesFlights(c, this.flights, this.flightTo) &&
         (this.minTier <= 0 || (years[this.minTier] !== null && this.age + years[this.minTier]! <= tierBy));
       out.set(c.id, {
         health,
@@ -336,6 +359,7 @@ class AppState {
     this.only.length +
       this.never.length +
       Object.keys(this.metricLimits).length +
+      Number(this.flights !== 'off') +
       Number(this.minTier > 0),
   );
 
@@ -463,6 +487,8 @@ const FIELDS: Field[] = [
   // 'now' is the v2.0 name for retiring at your current age.
   field('mode', () => app.mode, (v) => (app.mode = v), (r): Mode => (r === 'when' ? 'when' : 'at'), 'at' as Mode),
   field('tier', () => app.targetTier, (v) => (app.targetTier = Math.round(v)), clamped(1, TIERS.length - 1, 2), 2),
+  field('fly', () => app.flights, (v) => (app.flights = v), (r): FlightFilter => (r === 'any' || r === 'yr' ? r : 'off'), 'off' as FlightFilter),
+  field('flyto', () => app.flightTo, (v) => (app.flightTo = v), (r) => (US_AIRPORTS.some((a) => a.iata === r) ? r : null), null as string | null),
   listField('only', () => app.only, (v) => (app.only = v), (s) => placeById.has(s), []),
   listField('never', () => app.never, (v) => (app.never = v), (s) => placeById.has(s), []),
   ...METRICS.map((m) =>
@@ -481,7 +507,7 @@ const FIELDS: Field[] = [
   field('city', () => app.selectedCityId, (v) => (app.selectedCityId = v), (r) => (cityById.has(r) ? r : null), null as string | null),
 ];
 
-const FILTER_KEYS = new Set(['only', 'never', 'mintier', 'tierwhen', 'tierby', 'tierin', ...METRICS.map((m) => m.hashKey)]);
+const FILTER_KEYS = new Set(['fly', 'flyto', 'only', 'never', 'mintier', 'tierwhen', 'tierby', 'tierin', ...METRICS.map((m) => m.hashKey)]);
 
 const LEGACY_INTO: Record<string, ContribKey> = { traditional: 'k401', roth: 'rothIra', brokerage: 'brokerage', cash: 'cash' };
 

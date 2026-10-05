@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { app, meta, placeById, flagEmoji, fmtUsd, fmtUsdCompact, fmtCompact, fmtPct, fmtPercentile, TARGET_TIERS } from '../state.svelte.ts';
+  import { app, meta, inUS, placeById, flagEmoji, fmtUsd, fmtUsdCompact, fmtCompact, fmtPct, fmtPercentile, TARGET_TIERS } from '../state.svelte.ts';
   import { TIERS, HOUSEHOLD_SCALE, localReference, tierSpend } from '../math/tiers.ts';
   import { CLASS_COLORS } from '../math/color.ts';
   import { METRICS, fmtMetric } from '../metrics.ts';
@@ -30,6 +30,21 @@
       </div>
       <button class="-m-1 p-1 text-slate-400 hover:text-slate-700" aria-label="Close" onclick={() => (app.selectedCityId = null)}>✕</button>
     </div>
+
+    {#if !inUS(city)}
+      {@const f = city.usFlights}
+      <p class="text-xs text-slate-600">
+        ✈️
+        {#if f && f.yearRound.length + f.seasonal.length > 0}
+          Nonstop to <b class="text-slate-900">{f.yearRound.join(', ') || 'the US'}</b>{#if f.seasonal.length}<span class="text-slate-500">
+              {f.yearRound.length ? ' + seasonal' : ' (seasonal only):'} {f.seasonal.join(', ')}</span
+            >{/if}
+          <span class="text-slate-400">from {f.via[0]?.airport} ({f.via[0]?.km} km)</span>
+        {:else}
+          <span class="text-slate-500">No nonstop flights to major US airports within {meta.flights?.radiusKm ?? 80} km.</span>
+        {/if}
+      </p>
+    {/if}
 
     <p class="text-xs text-slate-600">
       Locals earn about <b class="text-slate-900">{fmtUsd(city.salary)}/mo</b> after tax.

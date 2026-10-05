@@ -175,6 +175,33 @@ describe('index filters', () => {
   });
 });
 
+describe('flight filter', () => {
+  it('year-round vs incl. seasonal vs a specific airport; US cities always pass', async () => {
+    const { passesFlights } = await import('./state.svelte.ts');
+    const lisbon = cities.find((c) => c.id === 'lisbon-pt')!;
+    const budapest = cities.find((c) => c.id === 'budapest-hu')!;
+    const austin = cities.find((c) => c.id === 'austin-tx-us')!;
+    const tbilisi = cities.find((c) => c.id === 'tbilisi-ge')!;
+    expect(passesFlights(lisbon, 'yr', null)).toBe(true);
+    expect(passesFlights(budapest, 'any', null)).toBe(budapest.usFlights!.seasonal.length > 0);
+    expect(passesFlights(budapest, 'yr', null)).toBe(budapest.usFlights!.yearRound.length > 0);
+    expect(passesFlights(tbilisi, 'any', null)).toBe(false);
+    expect(passesFlights(austin, 'yr', 'JFK')).toBe(true);
+    expect(passesFlights(lisbon, 'yr', lisbon.usFlights!.yearRound[0])).toBe(true);
+    expect(passesFlights(lisbon, 'yr', 'ANC')).toBe(false);
+    expect(passesFlights(tbilisi, 'off', null)).toBe(true);
+  });
+  it('round-trips through the URL and counts as a filter', () => {
+    readHash('#fly=yr&flyto=ORD');
+    expect(app.flights).toBe('yr');
+    expect(app.flightTo).toBe('ORD');
+    expect(app.filtersActive).toBe(1);
+    app.clearFilters();
+    expect(app.flights).toBe('off');
+    readHash('');
+  });
+});
+
 describe('place filters', () => {
   it('"only" keeps matching places; "never" wins over "only"', () => {
     readHash('#only=europe&never=c-pt');

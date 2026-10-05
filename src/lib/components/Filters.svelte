@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { app, cities, places, placeById, flagEmoji, meta } from '../state.svelte.ts';
+  import { app, cities, places, placeById, flagEmoji, meta, US_AIRPORTS } from '../state.svelte.ts';
+  import type { FlightFilter } from '../state.svelte.ts';
   import type { Place } from '../types.ts';
   import { METRICS, displayRange, toDisplay, fromDisplay, fmtMetric } from '../metrics.ts';
   import type { Metric, Units } from '../metrics.ts';
@@ -137,6 +138,42 @@
       {/each}
     </div>
   {/if}
+
+  <div class="space-y-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600">
+    <div class="flex flex-wrap items-center gap-1.5">
+      <span>✈️ Nonstop flights to the US</span>
+      <select
+        aria-label="Nonstop flights to the US"
+        class="rounded-md border px-1.5 py-1 text-xs {app.flights !== 'off' ? 'border-blue-400 bg-blue-50 font-medium text-blue-900' : 'border-slate-300 bg-white'}"
+        value={app.flights}
+        onchange={(e) => (app.flights = e.currentTarget.value as FlightFilter)}
+      >
+        <option value="off">don't care</option>
+        <option value="any">required (incl. seasonal)</option>
+        <option value="yr">required, year-round</option>
+      </select>
+      {#if app.flights !== 'off'}
+        <span>to</span>
+        <select
+          aria-label="US airport"
+          class="max-w-[11rem] rounded-md border border-blue-400 bg-blue-50 px-1.5 py-1 text-xs font-medium text-blue-900"
+          value={app.flightTo ?? ''}
+          onchange={(e) => (app.flightTo = e.currentTarget.value || null)}
+        >
+          <option value="">any US airport</option>
+          {#each [...US_AIRPORTS].sort((x, y) => x.iata.localeCompare(y.iata)) as a (a.iata)}
+            <option value={a.iata}>{a.iata} · {a.name}</option>
+          {/each}
+        </select>
+      {/if}
+    </div>
+    {#if meta.flights}
+      <p class="text-[11px] text-slate-400">
+        From an airport within {meta.flights.radiusKm} km to one of {US_AIRPORTS.length} major US airports. Airline route tables on
+        Wikipedia, {meta.flights.fetched}. US cities always count.
+      </p>
+    {/if}
+  </div>
 
   <details class="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2" open={limitCount > 0}>
     <summary class="cursor-pointer select-none text-xs font-medium text-slate-600">

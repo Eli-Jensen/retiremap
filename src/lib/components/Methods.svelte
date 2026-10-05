@@ -177,6 +177,17 @@
     </section>
 
     <section class="space-y-2">
+      <h3 class="font-semibold text-slate-900">Nonstop flights to the US</h3>
+      <p>
+        For each of the {meta.flights?.usAirports.length ?? 65} FAA large and medium hub airports, the passenger "Airlines and
+        destinations" table on its Wikipedia page ({meta.flights?.fetched}; CC BY-SA 4.0), with coordinates from Wikipedia /
+        Wikidata. A city counts as connected when any airport within {meta.flights?.radiusKm ?? 80} km has a nonstop to one of
+        those US airports. Seasonal routes are marked; charters and routes that haven't started yet are left out. Smaller US
+        airports aren't covered, and airline schedules change — check before you book a life around a route.
+      </p>
+    </section>
+
+    <section class="space-y-2">
       <h3 class="font-semibold text-slate-900">Not modeled</h3>
       <ul class="list-disc space-y-1 pl-5">
         <li>Visas and residency rules — many countries require a minimum income or deposit.</li>
@@ -198,7 +209,9 @@
         snapshot {meta.snapshotDate}, {meta.cityCount} cities. Coordinates:
         <a class="text-blue-600 underline" href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a> (CC BY 4.0). Regions:
         <a class="text-blue-600 underline" href={sources.m49.url} target="_blank" rel="noreferrer">UN M49</a>, plus the EU and a
-        conventional Middle East. Weather: <a class="text-blue-600 underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Weather data by Open-Meteo.com</a>
+        conventional Middle East. Flight routes:
+        <a class="text-blue-600 underline" href="https://en.wikipedia.org/wiki/List_of_the_busiest_airports_in_the_United_States" target="_blank" rel="noreferrer">Wikipedia</a>
+        (CC BY-SA 4.0). Weather: <a class="text-blue-600 underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Weather data by Open-Meteo.com</a>
         (CC BY 4.0). Market history: <a class="text-blue-600 underline" href={sources.shiller.url} target="_blank" rel="noreferrer">Shiller</a>,
         <a class="text-blue-600 underline" href={sources.fredGs10.url} target="_blank" rel="noreferrer">FRED GS10</a>. Map:
         <a class="text-blue-600 underline" href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a>, © OpenMapTiles,

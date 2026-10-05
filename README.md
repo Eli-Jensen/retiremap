@@ -1,47 +1,83 @@
 # RetireMap 🌍
 
-A static web app that answers: **where — and when — could you retire, and at
-what level?** Enter your age, the age you want to retire, your income, your
-balances (checking, savings, brokerage, traditional 401(k)/IRA, Roth
-401(k)/Roth IRA, HSA), what you put into each account this year, and other
-retirement income; every one of 555 cities is rated by the lifestyle you
-could afford there, measured against what locals earn:
+**Where — and when — could you retire, and how well?** RetireMap takes your
+real situation — age, income, account balances, what you save each year,
+Social Security — and rates **555 cities worldwide** by the lifestyle you
+could afford there, measured against what *locals* earn. Then it tells you
+*when* you could retire in each one at each level.
 
-| Tier | Monthly spend vs. the local reference |
+**Live:** <https://retiremap-ej.web.app>
+
+![Map of 555 cities colored by the lifestyle you could afford retiring at 48](docs/screenshots/map.png)
+
+## What it does
+
+- **Lifestyle tiers relative to locals** — from *Scraping by* to *Like a
+  king*, by how your monthly budget compares with a local's take-home pay:
+
+  | Tier | Your spend vs. the local reference |
+  |---|---|
+  | Not enough | < 0.43× (below a minimum-wage local — OECD median) |
+  | Scraping by | 0.43–0.75× |
+  | Like a local | 0.75–1.5× |
+  | Comfortable | 1.5–3× |
+  | Living well | 3–6× |
+  | Like a king | ≥ 6× |
+
+- **Two questions** — *Retire at [age]*: what tier your projected savings buy
+  in each city. *When could I…*: pick a tier, see the age you could retire
+  there at it.
+- **Every city's price for every tier** — $/month, $/year, or the savings
+  you'd need — with a ✓ where it's within reach by your planned age.
+- **Real retirement math** — per-account balances and contributions
+  (traditional/Roth 401(k), Roth IRA, HSA, brokerage, cash) with 2026 IRS
+  limits and catch-ups, a blended withdrawal tax, Social Security from your
+  income via SSA's formula, health insurance abroad vs. ACA/Medicare, and a
+  safe withdrawal rate from 150 years of US market history that shrinks as
+  your retirement gets longer.
+- **Filter it down to what you care about** — only/never any continent,
+  region (Southeast Asia, Central America…), group (EU, Middle East) or
+  country; nonstop flights to the US (or to *your* airport); safety, health
+  care, pollution, quality of life; summer highs, winter lows, sunshine,
+  rain and humidity; rent and grocery prices; city size.
+- **Data-backed defaults** — start as the median *FIRE saver* (from the
+  r/financialindependence survey) or a *typical American* (Fed, Census,
+  Vanguard, Gallup); every number is cited on the in-app *How this works*
+  page.
+- **Private and shareable** — everything runs in your browser; your plan is
+  remembered locally and mirrored to the URL so you can share it.
+
+| | |
 |---|---|
-| Not enough | < 0.43× (below a minimum-wage local) |
-| Scraping by | 0.43–0.75× |
-| Like a local | 0.75–1.5× |
-| Comfortable | 1.5–3× |
-| Living well | 3–6× |
-| Like a king | ≥ 6× |
+| ![Lisbon detail card: flights, tier ladder with costs and savings needed](docs/screenshots/city-card.png) | ![List view answering "where could I live well within 5 years?"](docs/screenshots/list.png) |
+| **City card** — nonstop flights, what each tier costs, the savings you'd need, and when you'd get there. | **"Live well within 5 years"** — one click on a worked question; every tier's price per city. |
+| ![Filters: only Southeast Asia and Latin America, nonstop year-round flights, safety, winter lows](docs/screenshots/filters.png) | ![When could I live comfortably: cities colored by how soon](docs/screenshots/when-map.png) |
+| **Filters** — regions, flights, safety, climate in °F or °C, prices. | **When could I…** — colored by how many years until you could retire there comfortably. |
 
-Two questions, map or list:
+<p align="center"><img src="docs/screenshots/mobile.png" alt="Phone layout: inputs collapse to a summary, list view" width="320"></p>
 
-- **Retire at [age]** — the tier your projected savings buy in each city.
-- **When could I…** — pick a tier; see the age you could retire there at it.
+Built with Svelte 5, Vite, TypeScript, Tailwind v4 and MapLibre GL. No
+backend, no accounts, no tracking — a full recompute of all 555 cities takes
+~7 ms in the browser.
 
-The list shows the age for *every* tier per city, with selectable columns
-and sorting. Filter by place — "only"/"never" any continent, UN M49
-sub-region (Southeast Asia…), group (EU, Middle East), or country — and by
-Numbeo quality of life, safety, health care, pollution, climate, city size,
-or minimum tier. Index filters/columns come from one registry
-(`src/lib/metrics.ts`): quality of life, safety (383 cities), health care
-(331), climate, pollution, rent, groceries, restaurants, local purchasing
-power, population (city proper, every city). Every input starts at a cited, data-backed default
-(`src/data/defaults.json`) — from a **FIRE saver** starting point by default
-(median r/financialindependence survey respondent still accumulating: 35,
-couple, retiring at 48, ~$613k across accounts, saving ~$101k/yr) or a
-**Typical American** one (Fed SCF / Census / Vanguard / Gallup medians) —
-is remembered in this browser (localStorage),
-and is mirrored to the URL hash so a plan can be shared; opening someone
-else's link doesn't overwrite your saved plan unless you edit it.
+## Data sources
 
-Svelte 5 + Vite + TypeScript + Tailwind v4 + MapLibre GL. No backend, no
-accounts, no tracking; all computation is client-side (~7 ms per full
-recompute).
+| What | Source | License |
+|---|---|---|
+| Cost of living, rent, salaries, quality of life, safety, health care | [Numbeo](https://www.numbeo.com/) (snapshot 2026-10-01) | Free for personal use with attribution; **not redistributable** as a dataset |
+| City coordinates & populations | [GeoNames](https://www.geonames.org/) | CC BY 4.0 |
+| Regions | [UN M49](https://unstats.un.org/unsd/methodology/m49/overview/) | Public |
+| Climate | [Open-Meteo](https://open-meteo.com/) Historical Weather API (ERA5) | CC BY 4.0 |
+| Sunshine calibration | WMO 1991–2020 station normals via NOAA NCEI + national met services | Public |
+| Nonstop flights | Wikipedia "Airlines and destinations" tables; Wikidata | CC BY-SA 4.0 / CC0 |
+| Market history (withdrawal rates, returns) | Robert Shiller; FRED GS10 | Public |
+| Defaults | Federal Reserve SCF, Vanguard, Census, SSA, IRS, KFF, CMS, OECD, Gallup, r/financialindependence | Cited in `src/data/defaults.json` |
+| Basemap | [OpenFreeMap](https://openfreemap.org), © OpenMapTiles, © OpenStreetMap | ODbL |
 
 ## Develop
+
+Node 20+. The app builds from committed snapshots in `src/data/`; you only
+need the pipeline (below) to refresh them.
 
 ```sh
 npm install
@@ -50,6 +86,7 @@ npm test           # vitest: SWR parity, planner, tiers, URL state, pipeline
 npm run check      # svelte-check + tsc
 npm run build      # production build to dist/
 npm run deploy     # build + firebase deploy --only hosting (project retiremap-ej)
+npm run screenshots  # regenerate docs/screenshots/*.png (needs the dev server + Chrome)
 ```
 
 ## The model (all real, today's dollars)
@@ -92,6 +129,17 @@ npm run deploy     # build + firebase deploy --only hosting (project retiremap-e
 - **Health**: per person, outside the US international-plan broker quotes
   ($470 <65 / $800 65+); US ACA full price ($1,330) / Medicare + Medigap + Part
   D ($430).
+- **Climate** (`pipeline/fetch-climate.ts`, `build-climate.ts`): Open-Meteo
+  daily ERA5 weather → monthly normals → summer high (hottest month), winter
+  low (coldest month), rain, rainy days, humidity. Sunshine is calibrated
+  against 17 measured station normals (`pipeline/sunshine-reference.json`)
+  by least squares on model sunshine + rainy days (leave-one-out error
+  ~330 h mean / ~190 h median, vs ~930 h uncalibrated).
+- **Flights** (`pipeline/fetch-flights.ts`, `build-flights.ts`): nonstops from
+  any airport within 80 km of a city to the 65 FAA large/medium US hubs,
+  from Wikipedia's "Airlines and destinations" tables; domestic US airports
+  (by Wikidata country) are excluded so border cities don't inherit US
+  domestic routes.
 - The detail card also shows the old RetireMap readout: the cost-adjusted
   percentile of US household spending (BLS CE deciles, PCHIP).
 
@@ -146,21 +194,27 @@ once or twice a year:
    13 "calls"; 10,000/day, 5,000/hour), keeping a per-day ledger in
    `pipeline/raw/climate/_ledger.json`; rerun daily until "Remaining: 0".
    The pipeline averages whatever years exist.
-7. `npm run pipeline` — matches cities, prints the salary/basics calibration
+7. **Flights** (Wikipedia, CC BY-SA 4.0): `npx tsx pipeline/fetch-flights.ts`
+   reads the FAA large/medium hub list and each hub's "Airlines and
+   destinations" passenger table via the MediaWiki API (~140 polite
+   requests), resolves destination airports' coordinates (Wikipedia, falling
+   back to Wikidata P625) and writes `pipeline/raw/flights/routes.json`.
+   Re-run every few months; routes change.
+8. `npm run pipeline` — matches cities, prints the salary/basics calibration
    tables, and trips loudly on anything suspicious (salary error > 5%, basics
    error > 10%, < 250 QoL-rated cities…). Fix stragglers in
    `pipeline/overrides.json`, commit the regenerated `src/data/*.json`.
-8. **Market history** (`src/data/market.json`) is exported from the
+9. **Market history** (`src/data/market.json`) is exported from the
    trinity-study project (`make web-data` there); copy it and
    `src/lib/math/swr.reference.json` across together.
-9. **Defaults** (`src/data/defaults.json`) — re-check the sources listed in
+10. **Defaults** (`src/data/defaults.json`) — re-check the sources listed in
    it, especially the Fed SCF (2025 survey due), SSA COLA, and KFF premiums.
 
 ## Manual smoke checklist
 
-1. Fresh browser (no saved plan): FIRE saver — "Retiring at 48 with $3.38M,
-   you could live in 555 of 555 cities — like a king in 171". Switch to
-   Typical American: "Retiring at 66 with $892K … like a king in 96".
+1. Fresh browser (no saved plan): FIRE saver — "Retiring at 48 with $3.52M,
+   you could live in 555 of 555 cities — like a king in 202". Switch to
+   Typical American: "Retiring at 66 with $892K …".
 2. Map colors: red/amber/green/blue/purple tiers clearly distinct; dots
    hidden entirely when filtered out.
 3. Place filter: type "India" → Never, "Africa" → Never → 500 cities, none in
@@ -179,7 +233,11 @@ once or twice a year:
 7. Reload with a bare URL → everything you entered comes back. Open a link
    with a different plan → amber "shared plan" banner, your saved plan
    untouched until you edit; "Switch to my plan" restores it.
-8. 375 px wide: list default, inputs collapse to a summary (shows filter
+8. Flights: "required, year-round" → 190 non-US cities + all US ones;
+   Windsor and Tijuana show none of their own (US airports across the border
+   don't count). Lisbon's card: "Nonstop to BOS, EWR, IAD, JFK, LAX, MIA,
+   ORD, PHL, SFO from Lisbon Airport (6 km)".
+9. 375 px wide: list default, inputs collapse to a summary (shows filter
    count), table scrolls sideways with the city column pinned, no page-level
    horizontal scroll.
 
@@ -189,6 +247,8 @@ once or twice a year:
   (snapshot; attribution required — this link is the credit).
 - City coordinates: [GeoNames](https://www.geonames.org/) (CC BY 4.0).
 - Market history: Robert Shiller (stocks, CPI), FRED GS10.
+- Nonstop routes: Wikipedia airport articles ("Airlines and destinations"),
+  CC BY-SA 4.0; coordinates from Wikipedia / Wikidata (CC0).
 - Weather: [Open-Meteo](https://open-meteo.com/) Historical Weather API
   (ERA5 reanalysis), CC BY 4.0.
 - Spending distribution: BLS Consumer Expenditure Survey (2024) via FRED.

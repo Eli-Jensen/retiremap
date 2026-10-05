@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { app, cities, flagEmoji, fmtUsd, fmtUsdCompact, fmtCompact, COLUMNS, DEFAULT_COLUMNS } from '../state.svelte.ts';
+  import { app, cities, flagEmoji, fmtUsd, fmtUsdCompact, fmtCompact, COLUMNS, DEFAULT_COLUMNS, inUS } from '../state.svelte.ts';
   import type { CityResult, ColumnId, CostUnit, SortKey } from '../state.svelte.ts';
   import type { CityRecord } from '../types.ts';
   import { TIERS, HOUSEHOLD_SCALE, localReference } from '../math/tiers.ts';
@@ -29,6 +29,8 @@
       [(c: CityRecord, r: CityResult) => number | null, boolean]
     >),
     salary: [(c) => localReference(c), false],
+    // More US airports first; seasonal-only service counts half. Cities in the US sort last.
+    flights: [(c) => (inUS(c) ? null : (c.usFlights?.yearRound.length ?? 0) + 0.5 * (c.usFlights?.seasonal.length ?? 0)), true],
   };
 
   // The column you sort by sits right after the city name, shown even if you'd hidden it.
@@ -250,7 +252,19 @@
               {:else}
                 {@const v = value[col.id][0](c, r)}
                 <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-600">
-                  {#if v === null}
+                  {#if col.id === 'flights'}
+                    {@const yr = c.usFlights?.yearRound ?? []}
+                    {@const se = c.usFlights?.seasonal ?? []}
+                    {#if inUS(c)}
+                      <span class="text-slate-400">in the US</span>
+                    {:else if yr.length + se.length === 0}
+                      <span class="text-slate-300">none</span>
+                    {:else}
+                      <span title="Year-round: {yr.join(', ') || '—'}{se.length ? ` · Seasonal: ${se.join(', ')}` : ''}">
+                        {yr.length || ''}{#if se.length}<span class="text-slate-400">{yr.length ? ' +' : ''}{se.length} seasonal</span>{/if}
+                      </span>
+                    {/if}
+                  {:else if v === null}
                     <span class="text-slate-300">—</span>
                   {:else if col.id === 'salary'}
                     {fmtUsd(v)}

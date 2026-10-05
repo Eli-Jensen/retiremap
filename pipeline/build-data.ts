@@ -6,7 +6,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { CityRecord, Meta, Place } from '../src/lib/types.ts';
 import { parseM49, placesFor } from './places.ts';
-import { loadClimate, calibrateSunshine, applySun } from './build-climate.ts';
+import { loadClimate, climateYears as yearsFor, calibrateSunshine, applySun } from './build-climate.ts';
+import { loadFlights, flightsFor, RADIUS_KM } from './build-flights.ts';
 import type { PlaceDef } from './places.ts';
 import { parseNumbeo, parseNumbeoQol } from './parse-numbeo.ts';
 import { parseGeoNames, parseCountryInfo, resolveCountry, CityMatcher } from './match-cities.ts';
@@ -125,6 +126,8 @@ for (const row of numbeoRows) {
 
 // --- assemble city records ---
 const slugify = (s: string) => norm(s).replace(/\s+/g, '-');
+const flightData = loadFlights(raw('flights/routes.json'));
+if (!flightData) console.warn('(optional) flights/routes.json missing — run pipeline/fetch-flights.ts');
 const cities: CityRecord[] = [];
 const climateYears = new Set<number>();
 for (const r of results) {
@@ -170,11 +173,11 @@ for (const r of results) {
   const bestHealth = health ?? q?.healthCare;
   if (bestSafety !== undefined) record.safety = bestSafety;
   if (bestHealth !== undefined) record.healthCare = bestHealth;
-  const clim = loadClimate(raw('climate'), record.id);
-  if (clim) {
-    record.climate = clim.climate;
-    for (const y of clim.years) climateYears.add(y);
+  if (flightData) {
+    const fl = flightsFor(record, flightData);
+    if (fl) record.usFlights = fl;
   }
+
   cities.push(record);
 }
 
@@ -197,6 +200,26 @@ const usRefIndex = {
   colRent: round2(usCities.reduce((a, c) => a + c.colRent * c.pop!, 0) / wSum),
 };
 
+// --- climate: average only the years every city has, so a half-finished
+// multi-year fetch doesn't compare one city's 2024 against another's decade ---
+let commonYears: Set<number> | null = null;
+for (const c of cities) {
+  const ys = new Set(yearsFor(raw('climate'), c.id));
+  commonYears = commonYears === null ? ys : new Set([...commonYears].filter((y) => ys.has(y)));
+}
+const fetchedYears = new Set(cities.flatMap((c) => yearsFor(raw('climate'), c.id)));
+if (commonYears && commonYears.size) {
+  for (const c of cities) {
+    const clim = loadClimate(raw('climate'), c.id, commonYears);
+    if (clim) {
+      c.climate = clim.climate;
+      for (const y of clim.years) climateYears.add(y);
+    }
+  }
+}
+if (fetchedYears.size > climateYears.size)
+  console.log(`Climate: using ${[...climateYears].sort().join(', ') || 'no'} years common to all cities (fetched so far: ${[...fetchedYears].sort().join(', ')})`);
+
 // --- sunshine calibration (see build-climate.ts) ---
 const sunRef = JSON.parse(readFileSync(join(here, 'sunshine-reference.json'), 'utf8'));
 const sunInputs = new Map(cities.filter((c) => c.climate).map((c) => [c.id, { model: c.climate!.sunHours, rainyDays: c.climate!.rainyDays }]));
@@ -208,6 +231,9 @@ const meta: Meta = {
   snapshotDate,
   cityCount: cities.length,
   usRefIndex,
+  ...(flightData
+    ? { flights: { fetched: flightData.fetched, usAirports: flightData.airports.map((a) => ({ iata: a.iata, name: a.name })), radiusKm: RADIUS_KM } }
+    : {}),
   ...(climateYears.size
     ? {
         climate: {
@@ -280,6 +306,10 @@ if (sunCal)
     `Sunshine calibration: measured = ${sunCal.coef[0].toFixed(0)} + ${sunCal.coef[1].toFixed(3)} × model + ${sunCal.coef[2].toFixed(2)} × rainyDays over ${sunCal.n} stations; error ${sunCal.rawMae.toFixed(0)} h raw → ${sunCal.looMae.toFixed(0)} h mean / ${sunCal.looMedian.toFixed(0)} h median (leave-one-out)`,
   );
 else if (climateYears.size) console.warn('Sunshine NOT calibrated (fewer than 8 reference cities have climate yet)');
+if (flightData) {
+  const abroad = cities.filter((c) => c.usFlights);
+  console.log(`US nonstops: ${abroad.filter((c) => c.usFlights!.yearRound.length).length} of ${abroad.length} non-US cities year-round, ${abroad.filter((c) => !c.usFlights!.yearRound.length && c.usFlights!.seasonal.length).length} seasonal-only`);
+}
 console.log(`Climate: ${cities.filter((c) => c.climate).length} cities (${[...climateYears].sort().join(', ') || 'none fetched'})`);
 console.log(`Safety: ${cities.filter((c) => c.safety !== undefined).length} cities · Health care: ${cities.filter((c) => c.healthCare !== undefined).length} cities`);
 const qolOrphans = [...qolByName.keys()].filter((n) => !rowByName.has(n));
