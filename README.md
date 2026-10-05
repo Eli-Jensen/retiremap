@@ -74,6 +74,15 @@ backend, no accounts, no tracking — a full recompute of all 555 cities takes
 | Defaults | Federal Reserve SCF, Vanguard, Census, SSA, IRS, KFF, CMS, OECD, Gallup, r/financialindependence | Cited in `src/data/defaults.json` |
 | Basemap | [OpenFreeMap](https://openfreemap.org), © OpenMapTiles, © OpenStreetMap | ODbL |
 
+> **About the Numbeo data.** Cost-of-living, rent, salary, quality-of-life,
+> safety and health-care figures in this repo (`src/data/cities.json`,
+> `pipeline/salary-anchor.json`) come from [Numbeo.com](https://www.numbeo.com/)
+> and remain © Numbeo. RetireMap is a free, non-commercial personal project
+> using them under Numbeo's personal-use terms, with attribution. They are
+> **not** licensed for reuse from this repository — if you want Numbeo data,
+> get it from [Numbeo](https://www.numbeo.com/) under their
+> [terms](https://www.numbeo.com/common/terms_of_use.jsp).
+
 ## Develop
 
 Node 20+. The app builds from committed snapshots in `src/data/`; you only
