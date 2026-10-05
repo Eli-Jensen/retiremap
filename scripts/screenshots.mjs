@@ -12,7 +12,7 @@ const browser = await puppeteer.launch({
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--hide-scrollbars'],
 });
 
-async function shot(name, hash, { width = 1440, height = 900, mobile = false, before } = {}) {
+async function shot(name, hash, { width = 1440, height = 900, mobile = false, before, clip } = {}) {
   const ctx = await browser.createBrowserContext(); // fresh storage: no saved plan
   const page = await ctx.newPage();
   await page.setViewport({ width, height, deviceScaleFactor: 2, isMobile: mobile, hasTouch: mobile });
@@ -30,7 +30,9 @@ async function shot(name, hash, { width = 1440, height = 900, mobile = false, be
   );
   if (before) await page.evaluate(before);
   await new Promise((r) => setTimeout(r, 600));
-  await page.screenshot({ path: `${OUT}/${name}.png` });
+  const box = clip ? await (await page.$(clip))?.boundingBox() : null;
+  if (box) await page.screenshot({ path: `${OUT}/${name}.png`, clip: { x: box.x - 16, y: box.y - 16, width: box.width + 32, height: Math.min(box.height, 560) + 32 } });
+  else await page.screenshot({ path: `${OUT}/${name}.png` });
   console.log('wrote', name);
   await ctx.close();
 }
@@ -46,13 +48,25 @@ const filtersShot = () =>
     },
   });
 
+const savingsShot = () =>
+  shot('savings', '#view=map', {
+    before: () => {
+      const el = document.getElementById('savings-chart');
+      el?.scrollIntoView({ block: 'center' });
+      el?.querySelector('details')?.setAttribute('open', '');
+    },
+    clip: '#savings-chart',
+  });
+
 if (process.argv[2] === 'filters') await filtersShot();
+else if (process.argv[2] === 'savings') await savingsShot();
 else {
 await shot('map', '#view=map');
   await shot('when-map', '#view=map&mode=when&tier=3');
   await shot('list', '#view=list&mintier=4&tierwhen=within&tierin=5');
   await shot('city-card', '#view=map&city=lisbon-pt');
   await filtersShot();
+  await savingsShot();
   await shot('mobile', '#view=list&mintier=3&tierwhen=at', { width: 390, height: 844, mobile: true });
   }
 await browser.close();

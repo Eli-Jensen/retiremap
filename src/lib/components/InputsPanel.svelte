@@ -3,6 +3,7 @@
   import { yearContribution } from '../math/plan.ts';
   import type { ContribKey } from '../math/plan.ts';
   import MoneyInput from './MoneyInput.svelte';
+  import SavingsChart from './SavingsChart.svelte';
 
   const swrAt = $derived(app.assumptions.swr(app.planToAge - app.retireAge));
   const zeroIsDefault = (n: number) => (n === 0 ? null : n);
@@ -169,6 +170,8 @@
     </span>
   </label>
 </section>
+
+<SavingsChart />
 
 <section class="space-y-3">
   <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Income in retirement</h2>

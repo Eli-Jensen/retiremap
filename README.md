@@ -35,6 +35,10 @@ could afford there, measured against what *locals* earn. Then it tells you
   income via SSA's formula, health insurance abroad vs. ACA/Medicare, and a
   safe withdrawal rate from 150 years of US market history that shrinks as
   your retirement gets longer.
+- **A sanity check on your inputs** — your savings drawn year by year to your
+  retirement age, split tax-deferred / tax-free / taxable, with what you put
+  in vs. what the market added and a table of every year, so a typo or an
+  optimistic return stands out at a glance.
 - **Filter it down to what you care about** — only/never any continent,
   region (Southeast Asia, Central America…), group (EU, Middle East) or
   country; nonstop flights to the US (or to *your* airport); safety, health
@@ -54,7 +58,12 @@ could afford there, measured against what *locals* earn. Then it tells you
 | ![Filters: only Southeast Asia and Latin America, nonstop year-round flights, safety, winter lows](docs/screenshots/filters.png) | ![When could I live comfortably: cities colored by how soon](docs/screenshots/when-map.png) |
 | **Filters** — regions, flights, safety, climate in °F or °C, prices. | **When could I…** — colored by how many years until you could retire there comfortably. |
 
-<p align="center"><img src="docs/screenshots/mobile.png" alt="Phone layout: inputs collapse to a summary, list view" width="320"></p>
+<p align="center">
+  <img src="docs/screenshots/savings.png" alt="Savings year by year: stacked columns from $613K at 35 to $3.52M at 48, by tax treatment, with a year-by-year table" width="360">
+  &nbsp;
+  <img src="docs/screenshots/mobile.png" alt="Phone layout: inputs collapse to a summary, list view" width="320">
+</p>
+<p align="center"><b>Your savings, year by year</b> — glance-check that your inputs are plausible. &nbsp;·&nbsp; <b>Phone layout</b>.</p>
 
 Built with Svelte 5, Vite, TypeScript, Tailwind v4 and MapLibre GL. No
 backend, no accounts, no tracking — a full recompute of all 555 cities takes
@@ -73,6 +82,12 @@ backend, no accounts, no tracking — a full recompute of all 555 cities takes
 | Market history (withdrawal rates, returns) | Robert Shiller; FRED GS10 | Public |
 | Defaults | Federal Reserve SCF, Vanguard, Census, SSA, IRS, KFF, CMS, OECD, Gallup, r/financialindependence | Cited in `src/data/defaults.json` |
 | Basemap | [OpenFreeMap](https://openfreemap.org), © OpenMapTiles, © OpenStreetMap | ODbL |
+
+## License
+
+The **code** is [MIT-licensed](LICENSE). The **data** keeps its sources'
+licenses (table above) — in particular, the Numbeo-derived figures are not
+covered by the MIT license:
 
 > **About the Numbeo data.** Cost-of-living, rent, salary, quality-of-life,
 > safety and health-care figures in this repo (`src/data/cities.json`,
@@ -246,7 +261,12 @@ once or twice a year:
    Windsor and Tijuana show none of their own (US airports across the border
    don't count). Lisbon's card: "Nonstop to BOS, EWR, IAD, JFK, LAX, MIA,
    ORD, PHL, SFO from Lisbon Airport (6 km)".
-9. 375 px wide: list default, inputs collapse to a summary (shows filter
+9. Your savings, year by year (FIRE defaults): $3.52M at 48, $1.46M put in,
+   $1.45M market growth; hover a column → per-account split + that year's
+   saved/growth; the table's age-35 row is $101K saved + $38.7K growth on
+   $613K = age 36's $753K. Retire age = current age → "nothing more to
+   project".
+10. 375 px wide: list default, inputs collapse to a summary (shows filter
    count), table scrolls sideways with the city column pinned, no page-level
    horizontal scroll.
 
