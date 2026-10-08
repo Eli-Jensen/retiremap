@@ -100,6 +100,8 @@ async function main() {
   const todo = years.flatMap((y) => cities.map((c) => ({ c, y }))).filter(({ c, y }) => !existsSync(join(outDir, c.id, `${y}.json`)));
   console.log(`${todo.length} city-years to fetch (${years.join(', ')}); spent today: ${(ledger[today()] ?? 0).toFixed(0)} / ${dailyBudget}`);
   let done = 0;
+  let skipped = 0;
+  let consecutiveFailures = 0;
   for (const { c, y } of todo) {
     const price = cost(y);
     if ((ledger[today()] ?? 0) + price > dailyBudget) {
@@ -110,31 +112,66 @@ async function main() {
     const url =
       `https://archive-api.open-meteo.com/v1/archive?latitude=${c.lat}&longitude=${c.lng}` +
       `&start_date=${y}-01-01&end_date=${y}-12-31&daily=${VARS.join(',')}&timezone=auto`;
-    let res: Response;
-    for (let attempt = 0; ; attempt++) {
-      res = await fetch(url);
-      if (res.ok || attempt >= 2 || (res.status !== 429 && res.status < 500)) break;
-      console.warn(`  ${res.status} for ${c.id} ${y}; backing off`);
-      await sleep(60_000 * (attempt + 1));
+    // Transient failures (429, 5xx, a network error, or a 200 whose body isn't
+    // the expected JSON — Open-Meteo occasionally answers "Unexpected …" as
+    // plain text) are retried with backoff; every attempt is charged to the
+    // ledger. A city-year that still fails is skipped (a later run retries it)
+    // so one bad response can't throw away the rest of the day's budget.
+    let out: YearClimate | null = null;
+    let status = 0;
+    let why = '';
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        console.warn(`  ${why} for ${c.id} ${y}; backing off`);
+        await sleep(60_000 * attempt);
+        await pace(price);
+      }
+      let body = '';
+      try {
+        const res = await fetch(url);
+        status = res.status;
+        body = await res.text();
+      } catch (e) {
+        status = 0;
+        why = `network error (${(e as Error).message})`;
+      }
+      ledger[today()] = (ledger[today()] ?? 0) + price;
+      saveLedger(ledger);
+      if (status === 0) continue;
+      if (status !== 200) {
+        why = `HTTP ${status} ${body.slice(0, 200)}`;
+        if (status === 429 || status >= 500) continue;
+        break; // 4xx other than 429: retrying won't help
+      }
+      try {
+        const j = JSON.parse(body) as { latitude: number; longitude: number; elevation: number; daily: Record<string, (number | null)[]> & { time: string[] } };
+        out = { year: y, lat: j.latitude, lng: j.longitude, elevation: j.elevation, months: monthly(y, j.daily) };
+        break;
+      } catch (e) {
+        why = `bad response (${(e as Error).message}; body: ${body.slice(0, 120)})`;
+      }
     }
-    ledger[today()] = (ledger[today()] ?? 0) + price;
-    saveLedger(ledger);
-    if (!res.ok) {
-      const body = await res.text();
-      if (res.status === 429) {
-        console.error(`Rate limited (${body.slice(0, 200)}). Stopping; rerun later.`);
+    if (!out) {
+      if (status === 429) {
+        console.error(`Rate limited (${why}). Stopping; rerun later.`);
         process.exit(2);
       }
-      throw new Error(`${c.id} ${y}: HTTP ${res.status} ${body.slice(0, 200)}`);
+      skipped++;
+      console.warn(`  skipping ${c.id} ${y}: ${why}`);
+      if (++consecutiveFailures >= 5) {
+        console.error(`5 city-years in a row failed — Open-Meteo looks unhealthy. Stopping; rerun later.`);
+        break;
+      }
+      continue;
     }
-    const j = (await res.json()) as { latitude: number; longitude: number; elevation: number; daily: Record<string, (number | null)[]> & { time: string[] } };
-    const out: YearClimate = { year: y, lat: j.latitude, lng: j.longitude, elevation: j.elevation, months: monthly(y, j.daily) };
+    consecutiveFailures = 0;
     mkdirSync(join(outDir, c.id), { recursive: true });
     writeFileSync(join(outDir, c.id, `${y}.json`), JSON.stringify(out));
     done++;
     if (done % 25 === 0) console.log(`  ${done}/${todo.length} · spent today ${ledger[today()].toFixed(0)}`);
   }
   const remaining = years.flatMap((y) => cities.map((c) => ({ c, y }))).filter(({ c, y }) => !existsSync(join(outDir, c.id, `${y}.json`))).length;
+  if (skipped) console.log(`Skipped ${skipped} after repeated failures (will retry next run).`);
   console.log(`Fetched ${done}. Remaining: ${remaining}.`);
 }
 
