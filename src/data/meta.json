@@ -273,14 +273,14 @@
     "radiusKm": 80
   },
   "climate": {
-    "firstYear": 2022,
+    "firstYear": 2015,
     "lastYear": 2024,
     "cities": 555,
     "sunCalibration": {
       "n": 17,
-      "rawMae": 945,
-      "looMae": 326,
-      "looMedian": 176
+      "rawMae": 971,
+      "looMae": 299,
+      "looMedian": 147
     }
   },
   "salaryAnchor": {
