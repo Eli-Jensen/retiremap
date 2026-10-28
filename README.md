@@ -25,7 +25,7 @@ could afford there, measured against what *locals* earn. Then it tells you
   | Like a king | ≥ 6× |
 
 - **Two questions** — *Retire at [age]*: what tier your projected savings buy
-  in each city. *When could I…*: pick a tier, see the age you could retire
+  in each city. *Earliest age*: pick a tier, see the age you could retire
   there at it.
 - **Every city's price for every tier** — $/month, $/year, or the savings
   you'd need — with a ✓ where it's within reach by your planned age.
@@ -56,7 +56,7 @@ could afford there, measured against what *locals* earn. Then it tells you
 | ![Lisbon detail card: flights, tier ladder with costs and savings needed](docs/screenshots/city-card.png) | ![List view answering "where could I live well within 5 years?"](docs/screenshots/list.png) |
 | **City card** — nonstop flights, what each tier costs, the savings you'd need, and when you'd get there. | **"Live well within 5 years"** — one click on a worked question; every tier's price per city. |
 | ![Filters: only Southeast Asia and Latin America, nonstop year-round flights, safety, winter lows](docs/screenshots/filters.png) | ![When could I live comfortably: cities colored by how soon](docs/screenshots/when-map.png) |
-| **Filters** — regions, flights, safety, climate in °F or °C, prices. | **When could I…** — colored by how many years until you could retire there comfortably. |
+| **Filters** — regions, flights, safety, climate in °F or °C, prices. | **Earliest age** — colored by how many years until you could retire there comfortably. |
 
 <p align="center">
   <img src="docs/screenshots/savings.png" alt="Savings year by year: stacked columns from $613K at 35 to $3.52M at 48, by tax treatment, with a year-by-year table" width="360">

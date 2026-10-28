@@ -92,7 +92,10 @@
   const ariaSort = (id: string) => (sortedCol !== id ? undefined : app.sort === 'best' ? 'other' : descending ? 'descending' : 'ascending');
 
   // Bring the sorted column into view when it changes (e.g. picked from the
-  // Sort menu while scrolled away), clear of the sticky city column.
+  // Sort menu while scrolled away), clear of the sticky city column. When it's
+  // off to the right, line its left edge up with the city column rather than
+  // its right edge with the screen: that leaves the column before it fully
+  // under the city column instead of half-hidden (":omfortable" on phones).
   let scroller: HTMLDivElement;
   $effect(() => {
     void sortedCol;
@@ -103,7 +106,7 @@
       const left = th.offsetLeft - first.offsetWidth;
       const right = th.offsetLeft + th.offsetWidth - scroller.clientWidth;
       if (scroller.scrollLeft > left) scroller.scrollLeft = left;
-      else if (scroller.scrollLeft < right) scroller.scrollLeft = right;
+      else if (scroller.scrollLeft < right) scroller.scrollLeft = left;
     });
   });
 
@@ -124,7 +127,6 @@
   });
   const colLabel = (col: { id: ColumnId; label: string; short?: string }) =>
     col.id === 'at' ? `At ${app.retireAge}` : col.id === 'now' ? 'Today' : (col.short ?? col.label);
-  const at = $derived(app.atRetirement);
   // Your monthly budget is the same in every city except for the health-insurance schedule (US vs abroad).
   const usCity = cities.find((c) => c.iso2 === 'US')!;
   const abroadCity = cities.find((c) => c.iso2 !== 'US')!;
@@ -149,11 +151,13 @@
           ? `Soonest to ${TIERS[app.minTier].verb}`
           : app.mode === 'when'
             ? `Soonest to ${TIERS[app.targetTier].verb}`
-            : `Best at ${app.retireAge}`,
+            : `Most spending power at ${app.retireAge}`,
     },
     { key: 'name' as SortKey, label: 'Name' },
-    ...COLUMNS.map((c) => ({ key: c.id as SortKey, label: c.id === 'at' ? `Lifestyle at ${app.retireAge}` : c.id === 'now' ? 'Lifestyle today' : /^t\d$/.test(c.id) ? `Cheapest to live ${c.label.toLowerCase()}` : c.label })),
+    ...COLUMNS.map((c) => ({ key: c.id as SortKey, label: c.id === 'at' ? `Lifestyle at ${app.retireAge}` : c.id === 'now' ? 'Lifestyle today' : /^t\d$/.test(c.id) ? `Cheapest to ${TIERS[Number(c.id[1])].verb}` : c.label })),
   ]);
+  /** "Best" is soonest-to-a-tier or most spending power; say which in the direction toggle. */
+  const bestIsSoonest = $derived(app.minTier > 0 || app.mode === 'when');
   function setSort(key: SortKey) {
     app.sort = key;
     app.sortDesc = false; // each key starts in its natural "best first" order
@@ -172,7 +176,9 @@
       class="min-w-52 flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
       bind:value={query}
     />
-    <span class="text-xs tabular-nums text-slate-500">{rows.length} cities</span>
+    {#if rows.length < cities.length}
+      <span class="text-xs tabular-nums text-slate-500">{rows.length} of {cities.length} cities</span>
+    {/if}
     <div class="flex items-center gap-1">
       <select aria-label="Sort by" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs" value={app.sort} onchange={(e) => setSort(e.currentTarget.value as SortKey)}>
         {#each sortOptions as o (o.key)}
@@ -183,7 +189,7 @@
         class="rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
         title="Reverse the order"
         onclick={() => (app.sortDesc = !app.sortDesc)}
-        >{app.sort === 'best' ? (app.sortDesc ? 'worst first' : 'best first') : app.sort === 'name' ? (app.sortDesc ? 'Z→A' : 'A→Z') : descending ? 'high → low' : 'low → high'}<span
+        >{app.sort === 'best' ? (bestIsSoonest ? (app.sortDesc ? 'latest first' : 'soonest first') : app.sortDesc ? 'least first' : 'most first') : app.sort === 'name' ? (app.sortDesc ? 'Z→A' : 'A→Z') : descending ? 'high → low' : 'low → high'}<span
           class="sr-only">, reverse the order</span
         ></button
       >
@@ -215,11 +221,11 @@
   </div>
 
   <div class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">
+    <!-- The headline summary lives in ModeBar; this line only gives the budget the columns are measured against. -->
     <span>
-      Retiring {when} with {fmtUsdCompact(at.portfolio)}, you could spend
-      <b class="text-slate-900">{fmtUsd(budgetAbroad)}/mo</b>
+      Your budget {when}: <b class="text-slate-900">{fmtUsd(budgetAbroad)}/mo</b>
       {#if app.healthOn}plus health insurance{/if} outside the US{#if budgetUS !== budgetAbroad}{' '}({fmtUsd(budgetUS)}/mo in the US, where insurance costs more){/if}.
-      <span class="hidden sm:inline">Each tier column shows what that lifestyle costs in the city — <b class="text-slate-800">✓</b> means you can afford it {when}.</span>
+      Tier columns show what each lifestyle costs there; <b class="font-medium text-emerald-700">✓</b> = affordable by {app.retireAge}.
     </span>
     <span class="ml-auto flex rounded-md border border-slate-300 bg-white p-0.5" role="radiogroup" aria-label="Show tier costs as">
       {#each UNITS as u (u.key)}
@@ -237,7 +243,7 @@
     <table class="w-full min-w-max text-sm">
       <thead class="sticky top-0 z-[2] bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
         <tr>
-          <th class="sticky left-0 z-[3] bg-slate-50 px-4 py-2 font-medium {sortedCol === 'name' ? sortedHead : ''}" aria-sort={ariaSort('name')}>
+          <th class="sticky left-0 z-[3] bg-slate-50 px-4 py-2 font-medium shadow-[inset_-1px_0_0_var(--color-slate-200)] {sortedCol === 'name' ? sortedHead : ''}" aria-sort={ariaSort('name')}>
             <button class="uppercase hover:text-slate-900" onclick={() => sortBy('name')}>City{arrow('name')}</button>
           </th>
           {#each visibleCols as col (col.id)}
@@ -257,7 +263,7 @@
           {@const r = app.results.get(c.id)!}
           {@const selected = app.selectedCityId === c.id}
           <tr class="group cursor-pointer {selected ? 'bg-blue-50' : 'hover:bg-slate-50'}" onclick={() => (app.selectedCityId = c.id)}>
-            <td class="sticky left-0 z-[1] px-4 py-2 {selected ? 'bg-blue-50' : 'bg-white group-hover:bg-slate-50'}">
+            <td class="sticky left-0 z-[1] px-4 py-2 shadow-[inset_-1px_0_0_var(--color-slate-200)] {selected ? 'bg-blue-50' : 'bg-white group-hover:bg-slate-50'}">
               <button class="text-left font-medium leading-tight text-slate-900" onclick={(e) => openCity(c.id, e)}>{flagEmoji(c.iso2)} {c.name}</button>
               <div class="text-xs text-slate-500">{c.admin ? `${c.admin}, ` : ''}{c.country}</div>
             </td>
@@ -270,7 +276,7 @@
                     {TIERS[tier].label}
                   </div>
                   <div class="pl-4 text-xs tabular-nums text-slate-500">
-                    {((col.id === 'at' ? r.spendAt : r.spendNow) / (localReference(c) * HOUSEHOLD_SCALE[app.household])).toFixed(1)}× a local
+                    {((col.id === 'at' ? r.spendAt : r.spendNow) / (localReference(c) * HOUSEHOLD_SCALE[app.household])).toFixed(1)}× local pay
                   </div>
                 </td>
               {:else if tierCol(col.id)}

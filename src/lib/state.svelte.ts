@@ -581,8 +581,9 @@ export function ordinal(n: number): string {
   return `${r}${s}`;
 }
 
+/** Reads as "that's {…} percentile": "the 42nd", "above the 99th". */
 export function fmtPercentile(p: number): string {
-  if (p <= 1) return '< 1st';
-  if (p >= 99) return '> 99th';
-  return ordinal(p);
+  if (p <= 1) return 'below the 1st';
+  if (p >= 99) return 'above the 99th';
+  return `the ${ordinal(p)}`;
 }

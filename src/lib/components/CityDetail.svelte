@@ -65,8 +65,8 @@
       </div>
       <p class="text-xs text-slate-600">
         {#if r.tierAt > 0}
-          {fmtUsd(r.spendAt)}/mo to live on, {r.ratioAt.toFixed(1)}× a local{#if r.health.over65 > 0}, plus health insurance{/if}. At
-          US prices that's the {fmtPercentile(app.usPercentile(r.spendAt, city))} percentile of households.
+          {fmtUsd(r.spendAt)}/mo to live on, {r.ratioAt.toFixed(1)}× local pay{#if r.health.over65 > 0}, plus health insurance{/if}. At
+          US prices that's {fmtPercentile(app.usPercentile(r.spendAt, city))} percentile of households.
         {:else if r.spendAt > 0}
           Only {fmtUsd(r.spendAt)}/mo would be left to live on{#if r.health.over65 > 0} after health insurance{/if} — under
           {fmtUsd(tierSpend(1, ref, app.household))}, what a minimum-wage local earns.

@@ -29,7 +29,11 @@
     app.sort = q.sort;
     app.sortDesc = false;
     app.tab = 'list';
+    app.mode = 'at'; // these are filter questions; "Earliest age" has its own lifestyle picker
   }
+  // One lifestyle control per mode: "Earliest age" asks via its own picker, so
+  // the filter row only shows there if a filter is already on (to remove it).
+  const showFilter = $derived(app.mode === 'at' || app.minTier > 0);
   const tab = (on: boolean) => `rounded-md px-3 py-1.5 text-xs font-medium ${on ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`;
 </script>
 
@@ -40,27 +44,35 @@
         Retire {when}
       </button>
       <button role="tab" aria-selected={app.mode === 'when'} class={tab(app.mode === 'when')} onclick={() => (app.mode = 'when')}>
-        When could I…
+        Earliest age
       </button>
     </div>
-    {#if app.mode === 'when'}
-      <select
-        aria-label="Lifestyle"
-        class="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs font-medium text-slate-900"
-        value={String(app.targetTier)}
-        onchange={(e) => (app.targetTier = Number(e.currentTarget.value))}
-      >
-        {#each TIERS.slice(1) as t, i (t.id)}
-          <option value={String(i + 1)}>{t.verb}</option>
-        {/each}
-      </select>
-    {/if}
   </div>
 
+  {#if app.mode === 'when'}
+    <!-- The label is half a sentence the picker finishes, so they never wrap apart. -->
+    <div class="space-y-0.5">
+      <label class="inline-flex items-center gap-1.5 whitespace-nowrap text-sm text-slate-700">
+        When could I
+        <select
+          class="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-medium text-slate-900"
+          value={String(app.targetTier)}
+          onchange={(e) => (app.targetTier = Number(e.currentTarget.value))}
+        >
+          {#each TIERS.slice(1) as t, i (t.id)}
+            <option value={String(i + 1)}>{t.verb}</option>
+          {/each}
+        </select>?
+      </label>
+      <p class="text-xs text-slate-500">{target.label}: {target.blurb.toLowerCase()}.</p>
+    </div>
+  {/if}
+
+  {#if showFilter}
   <div class="space-y-1.5 rounded-lg bg-slate-50 px-2.5 py-2">
     <div class="flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
       <span>Show cities where I could live</span>
-      <select aria-label="Lifestyle" class="{pill(app.minTier > 0)}" value={String(app.minTier)} onchange={(e) => (app.minTier = Number(e.currentTarget.value))}>
+      <select aria-label="Lifestyle filter" class="{pill(app.minTier > 0)}" value={String(app.minTier)} onchange={(e) => (app.minTier = Number(e.currentTarget.value))}>
         <option value="0">any way at all</option>
         {#each TIERS.slice(1) as t, i (t.id)}
           <option value={String(i + 1)}>{i + 1 === TIERS.length - 1 ? t.label.toLowerCase() : `at least ${t.label.toLowerCase()}`}</option>
@@ -104,15 +116,17 @@
         <button class="text-slate-500 hover:text-slate-700" aria-label="Remove lifestyle filter" onclick={() => (app.minTier = 0)}>✕</button>
       {/if}
     </div>
-    <div class="flex flex-wrap items-center gap-1.5 text-xs">
-      <span class="text-slate-500">Try:</span>
+    <!-- One scrollable row on phones so the examples don't push the map down. -->
+    <div class="-mx-2.5 flex items-center gap-1.5 overflow-x-auto px-2.5 text-xs sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+      <span class="shrink-0 text-slate-500">Try:</span>
       {#each questions as q (q.label)}
-        <button class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-slate-600 hover:border-blue-300 hover:text-blue-700" onclick={() => ask(q)}>
+        <button class="shrink-0 whitespace-nowrap rounded-full border border-slate-200 bg-white px-2 py-0.5 text-slate-600 hover:border-blue-300 hover:text-blue-700" onclick={() => ask(q)}>
           {q.label}
         </button>
       {/each}
     </div>
   </div>
+  {/if}
 
   <p class="text-sm leading-snug text-slate-700" aria-live="polite">
     {#if s.shown === 0}
@@ -126,7 +140,7 @@
         <button class="font-medium text-blue-600 hover:underline" onclick={() => (app.mode = 'when')}>See when you could →</button>
       {:else}
         Retiring {when} with {fmtUsdCompact(app.atRetirement.portfolio)}, you could live in
-        <b class="text-slate-950">{s.retirable}</b> of {s.shown} cities —
+        {#if s.retirable === s.shown}<b class="text-slate-950">all {s.shown}</b> cities{:else}<b class="text-slate-950">{s.retirable}</b> of {s.shown} cities{/if} —
         <b class="text-slate-950">{TIERS[best].label.toLowerCase()}</b> in {s.byTier[best]}.
       {/if}
     {:else if s.soonest === null}
