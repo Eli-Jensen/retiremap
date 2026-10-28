@@ -51,7 +51,7 @@
 >
   <div class="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-3">
     <h2 class="font-bold text-slate-900">How this works</h2>
-    <button class="text-slate-400 hover:text-slate-700" aria-label="Close" onclick={() => (app.methodsOpen = false)}>✕</button>
+    <button class="text-slate-500 hover:text-slate-700" aria-label="Close" onclick={() => (app.methodsOpen = false)}>✕</button>
   </div>
   <div class="space-y-5 px-5 py-4">
     <section class="space-y-2">

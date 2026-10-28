@@ -55,13 +55,13 @@
           <button
             role="radio"
             aria-checked={app.persona === id}
-            class="rounded-md px-2 py-1 text-[11px] font-medium {app.persona === id ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'}"
+            class="rounded-md px-2 py-1 text-xs font-medium {app.persona === id ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'}"
             onclick={() => (app.persona = id)}>{defaults.personas[id].label}</button
           >
         {/each}
       </div>
     </div>
-    <p class="text-[11px] text-slate-400">Starting numbers: {app.p.blurb}. Type over anything.</p>
+    <p class="text-xs text-slate-500">Starting numbers: {app.p.blurb}. Type over anything.</p>
   </div>
 
   <div class="grid grid-cols-3 gap-2">
@@ -89,7 +89,7 @@
       </select>
     </div>
   </div>
-  <p class="-mt-1 text-[11px] text-slate-400">
+  <p class="-mt-1 text-xs text-slate-500">
     {#if app.retireAgeInput === null}
       {app.persona === 'fire' ? 'Typical FIRE target: 46–50.' : 'Typical plan: 66 (Americans actually retire at 61 on average).'}
     {/if}
@@ -121,7 +121,7 @@
     <MoneyInput id="brokerage" label="Brokerage" value={app.brokerageInput} fallback={app.brokerage} hint="typical" onchange={(v) => (app.brokerageInput = v)} />
     <MoneyInput id="hsa-bal" label="HSA" value={zeroIsDefault(app.hsaBalance)} fallback={0} onchange={(v) => (app.hsaBalance = v ?? 0)} />
   </div>
-  <p class="text-[11px] text-slate-400">
+  <p class="text-xs text-slate-500">
     Traditional money is taxed when you withdraw it; Roth, HSA (for medical costs) and cash aren't. Checking and savings earn
     nothing after inflation until you retire.
   </p>
@@ -132,7 +132,7 @@
     <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Saving this year</h2>
     <span class="text-xs tabular-nums text-slate-500">
       total <b class="text-slate-800">{fmtUsdCompact(app.thisYear.wanted)}</b>
-      <span class="text-slate-400">· {app.householdIncome > 0 ? fmtPct(app.thisYear.wanted / app.householdIncome, 0) : '—'} of income</span>
+      <span class="text-slate-500">· {app.householdIncome > 0 ? fmtPct(app.thisYear.wanted / app.householdIncome, 0) : '—'} of income</span>
     </span>
   </div>
   <div class="grid grid-cols-2 gap-x-2 gap-y-3">
@@ -149,7 +149,7 @@
     {/each}
   </div>
   {#if app.thisYear.overflow > 0}
-    <p class="rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-900">
+    <p class="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900">
       {fmtUsd(app.thisYear.overflow)} is over this year's IRS limits, so it goes to brokerage instead.
     </p>
   {/if}
@@ -159,7 +159,7 @@
       <b class="tabular-nums">{fmtPct(app.contributionGrowth, 1)} after inflation</b>
     </span>
     <input type="range" min="0" max="0.06" step="0.0025" class="w-full accent-blue-600" value={app.contributionGrowth} oninput={(e) => (app.growthInput = Number(e.currentTarget.value))} />
-    <span class="block text-[11px] text-slate-400">
+    <span class="block text-xs text-slate-500">
       {#if app.growthInput === null}Typical real wage growth (SSA).{:else}<button class="text-blue-600 hover:underline" onclick={() => (app.growthInput = null)}>reset to typical ({fmtPct(defaults.contributionGrowth.value, 1)})</button>{/if}
       {#if lastYear}
         By your last working year (age {app.retireAge - 1}) that's {fmtUsdCompact(lastYear.wanted)}/yr{#if lastYear.overflow > 0}, {fmtUsdCompact(lastYear.overflow)} of it over the caps and into brokerage{/if}.
@@ -190,7 +190,7 @@
       <input type="number" min="62" max="70" class={field} value={app.ssStartAge} oninput={(e) => ageInput(e, 62, 70, (n) => (app.ssStartAge = n))} />
     </label>
   </div>
-  <p class="-mt-1 text-[11px] text-slate-400">
+  <p class="-mt-1 text-xs text-slate-500">
     {#if app.ssInput === null}
       SSA formula on {app.household === 'couple' ? 'your incomes' : 'your income'}, {Math.max(0, app.retireAge - app.careerStart)} years worked
       (from age
@@ -199,7 +199,7 @@
         min="14"
         max="70"
         aria-label="Started working at age"
-        class="w-10 rounded border border-slate-200 px-0.5 text-center text-[11px] tabular-nums"
+        class="w-10 rounded border border-slate-200 px-0.5 text-center text-xs tabular-nums"
         value={app.careerStart}
         oninput={(e) => ageInput(e, 14, 70, (n) => (app.careerStartInput = n))}
       />
@@ -220,7 +220,7 @@
 <details class="group rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2">
   <summary class="cursor-pointer select-none text-xs font-medium text-slate-600">
     Assumptions
-    <span class="font-normal text-slate-400">
+    <span class="font-normal text-slate-500">
       · {app.stockPct}% stocks · withdraw {fmtPct(swrAt, 2)} · {fmtPct(app.realReturn)} growth · tax {fmtPct(app.atRetirement.taxRate, 0)}
     </span>
   </summary>
@@ -228,7 +228,7 @@
     <label class="block space-y-1">
       <span class="flex justify-between"><span>Stocks in your portfolio</span><b class="tabular-nums">{app.stockPct}%</b></span>
       <input type="range" min="0" max="100" step="5" class="w-full accent-blue-600" value={app.stockPct} oninput={(e) => (app.stockInput = Number(e.currentTarget.value))} />
-      <span class="block text-[11px] text-slate-400">The rest is 10-year Treasuries. Drives both growth and the withdrawal rate.</span>
+      <span class="block text-xs text-slate-500">The rest is 10-year Treasuries. Drives both growth and the withdrawal rate.</span>
     </label>
 
     <div class="space-y-1">
@@ -251,14 +251,14 @@
       </div>
       {#if app.swrFixed === null}
         <label class="flex items-center justify-between gap-2">
-          <span class="text-[11px] text-slate-400">Highest rate that ran out of money in at most</span>
+          <span class="text-xs text-slate-500">Highest rate that ran out of money in at most</span>
           <select class="rounded-md border border-slate-300 bg-white px-1 py-0.5" value={String(app.maxFailure)} onchange={(e) => (app.maxFailure = Number(e.currentTarget.value))}>
             {#each [0, 0.01, 0.05, 0.1] as f (f)}
               <option value={String(f)}>{fmtPct(f, 0)}</option>
             {/each}
           </select>
         </label>
-        <span class="block text-[11px] text-slate-400">of US retirements since 1871 of the same length.</span>
+        <span class="block text-xs text-slate-500">of US retirements since 1871 of the same length.</span>
       {/if}
     </div>
 
@@ -269,7 +269,7 @@
       </span>
       <input type="range" min="0" max="0.08" step="0.0025" class="w-full accent-blue-600" value={app.realReturn} oninput={(e) => (app.returnFixed = Number(e.currentTarget.value))} />
       {#if app.returnFixed !== null}
-        <button class="text-[11px] text-blue-600 hover:underline" onclick={() => (app.returnFixed = null)}>reset to historical ({fmtPct(app.historicalReturn)})</button>
+        <button class="text-xs text-blue-600 hover:underline" onclick={() => (app.returnFixed = null)}>reset to historical ({fmtPct(app.historicalReturn)})</button>
       {/if}
     </div>
 
@@ -285,7 +285,7 @@
     <label class="block space-y-1">
       <span class="flex justify-between"><span>Tax on brokerage withdrawals</span><b class="tabular-nums">{fmtPct(app.brokerageTax, 0)}</b></span>
       <input type="range" min="0" max="0.25" step="0.01" class="w-full accent-blue-600" bind:value={app.brokerageTax} />
-      <span class="block text-[11px] text-slate-400">
+      <span class="block text-xs text-slate-500">
         0% long-term gains tax up to $49,450 of taxable income ($98,900 couples). Blended by balance, your withdrawals at
         {app.retireAge} are taxed {fmtPct(app.atRetirement.taxRate, 1)}.
       </span>
@@ -295,17 +295,17 @@
       <input type="checkbox" class="mt-0.5 accent-blue-600" bind:checked={app.healthOn} />
       <span>
         Add health insurance
-        <span class="block text-[11px] text-slate-400">
+        <span class="block text-xs text-slate-500">
           Abroad ${defaults.health.abroad.under65}/${defaults.health.abroad.over65} a month per person (under/over 65); US
           ${defaults.health.us.under65}/${defaults.health.us.over65}.
         </span>
       </span>
     </label>
-    <p class="text-[11px] text-slate-400">Years before income starts are funded like a bond ladder earning {fmtPct(BRIDGE_RATE)} real.</p>
+    <p class="text-xs text-slate-500">Years before income starts are funded like a bond ladder earning {fmtPct(BRIDGE_RATE)} real.</p>
   </div>
 </details>
 
-<p class="text-[11px] text-slate-400">
+<p class="text-xs text-slate-500">
   Saved in this browser only — nothing leaves your device.
   <button class="text-blue-600 hover:underline" onclick={startOver}>Start over</button>
 </p>

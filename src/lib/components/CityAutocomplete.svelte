@@ -61,7 +61,7 @@
       <span>{flagEmoji(selected.iso2)}</span>
       <span class="flex-1 truncate font-medium">{cityLabel(selected)}</span>
       <button
-        class="text-slate-400 hover:text-slate-700"
+        class="text-slate-500 hover:text-slate-700"
         title="Clear home city (use US average)"
         onclick={() => {
           onSelect(null);

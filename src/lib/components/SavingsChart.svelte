@@ -89,15 +89,15 @@
     <div class="grid grid-cols-3 gap-2 text-center">
       <div class="rounded-lg bg-slate-50 px-1 py-1.5">
         <div class="text-sm font-semibold tabular-nums text-slate-900">{fmtUsdCompact(last.total)}</div>
-        <div class="text-[10px] leading-tight text-slate-500">at {last.age}</div>
+        <div class="text-xs leading-tight text-slate-500">at {last.age}</div>
       </div>
       <div class="rounded-lg bg-slate-50 px-1 py-1.5">
         <div class="text-sm font-semibold tabular-nums text-slate-900">{fmtUsdCompact(contributedTotal)}</div>
-        <div class="text-[10px] leading-tight text-slate-500">you put in</div>
+        <div class="text-xs leading-tight text-slate-500">you put in</div>
       </div>
       <div class="rounded-lg bg-slate-50 px-1 py-1.5">
         <div class="text-sm font-semibold tabular-nums text-slate-900">{fmtUsdCompact(growthTotal)}</div>
-        <div class="text-[10px] leading-tight text-slate-500">market growth</div>
+        <div class="text-xs leading-tight text-slate-500">market growth</div>
       </div>
     </div>
 
@@ -113,7 +113,7 @@
       >
         {#each ticks as t (t)}
           <line x1={PAD.l} x2={width - PAD.r} y1={y(t)} y2={y(t)} stroke={t === 0 ? '#c3c2b7' : '#e1e0d9'} stroke-width="1" />
-          <text x={PAD.l - 4} y={y(t) + 3} text-anchor="end" class="fill-slate-400 text-[9px] tabular-nums">{t === 0 ? '0' : fmtUsdCompact(t)}</text>
+          <text x={PAD.l - 4} y={y(t) + 3} text-anchor="end" class="fill-slate-500 text-[9px] tabular-nums">{t === 0 ? '0' : fmtUsdCompact(t)}</text>
         {/each}
         {#each years as yr, i (yr.age)}
           {@const tops = yr.groups.map((_, g) => yr.groups.slice(0, g + 1).reduce((a, b) => a + b, 0))}
@@ -137,14 +137,14 @@
           </g>
         {/each}
         {#each ageTicks as t (t.i)}
-          <text x={x(t.i) + barW / 2} y={H - 4} text-anchor="middle" class="fill-slate-400 text-[9px] tabular-nums">{t.age}</text>
+          <text x={x(t.i) + barW / 2} y={H - 4} text-anchor="middle" class="fill-slate-500 text-[9px] tabular-nums">{t.age}</text>
         {/each}
       </svg>
 
       {#if hover !== null && years[hover]}
         {@const yr = years[hover]}
         <div
-          class="pointer-events-none absolute top-0 z-10 w-44 rounded-lg border border-slate-200 bg-white/95 p-2 text-[11px] shadow-lg"
+          class="pointer-events-none absolute top-0 z-10 w-44 rounded-lg border border-slate-200 bg-white/95 p-2 text-xs shadow-lg"
           style="left: {Math.min(Math.max(0, x(hover) - 88), width - 176)}px"
         >
           <div class="mb-1 font-semibold text-slate-900">Age {yr.age} · {fmtUsd(yr.total)}</div>
@@ -163,18 +163,18 @@
       {/if}
     </div>
 
-    <ul class="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-600">
+    <ul class="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-600">
       {#each GROUPS as g (g.key)}
         <li class="flex items-center gap-1" title={g.note}>
           <span class="inline-block h-2.5 w-2.5 rounded-sm" style="background:{g.color}"></span>{g.label}
-          <span class="text-slate-400">({g.note})</span>
+          <span class="text-slate-500">({g.note})</span>
         </li>
       {/each}
     </ul>
 
-    <p class="text-[11px] leading-snug text-slate-500">
+    <p class="text-xs leading-snug text-slate-500">
       Today's dollars. You save {fmtPct(savingRate, 0)} of income now
-      <span class="text-slate-400">(typical: 46% for FIRE savers, 12% for most Americans)</span>, rising
+      <span class="text-slate-500">(typical: 46% for FIRE savers, 12% for most Americans)</span>, rising
       {fmtPct(app.contributionGrowth, 1)}/yr, and investments grow {fmtPct(app.realReturn, 1)}/yr after inflation.
       {#if growthTotal > contributedTotal}More than half of it would be market growth — check that return assumption.{/if}
     </p>
@@ -182,8 +182,8 @@
     <details class="text-xs text-slate-600">
       <summary class="cursor-pointer select-none text-slate-500 hover:text-slate-700">Year-by-year table</summary>
       <div class="mt-1.5 max-h-64 overflow-y-auto">
-        <table class="w-full text-[11px] tabular-nums">
-          <thead class="sticky top-0 bg-white text-slate-400">
+        <table class="w-full text-xs tabular-nums">
+          <thead class="sticky top-0 bg-white text-slate-500">
             <tr><th class="py-0.5 text-left font-medium">Age</th><th class="text-right font-medium">Saved</th><th class="text-right font-medium">Growth</th><th class="text-right font-medium">Balance</th></tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
@@ -198,7 +198,7 @@
           </tbody>
         </table>
       </div>
-      <p class="mt-1 text-[10px] text-slate-400">Balance at the start of each year; savings land at year end.</p>
+      <p class="mt-1 text-xs text-slate-500">Balance at the start of each year; savings land at year end.</p>
     </details>
   {/if}
 </section>

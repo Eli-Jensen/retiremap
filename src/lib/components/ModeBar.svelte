@@ -86,7 +86,7 @@
               if (n >= 0 && n <= 80) app.minTierWithin = Math.round(n);
             }}
           />
-          <span>{app.minTierWithin === 1 ? 'year' : 'years'} <span class="text-slate-400">(by {app.tierDeadline})</span></span>
+          <span>{app.minTierWithin === 1 ? 'year' : 'years'} <span class="text-slate-500">(by {app.tierDeadline})</span></span>
         {:else if app.minTierWhen === 'by'}
           <input
             type="number"
@@ -101,11 +101,11 @@
             }}
           />
         {/if}
-        <button class="text-slate-400 hover:text-slate-700" aria-label="Remove lifestyle filter" onclick={() => (app.minTier = 0)}>✕</button>
+        <button class="text-slate-500 hover:text-slate-700" aria-label="Remove lifestyle filter" onclick={() => (app.minTier = 0)}>✕</button>
       {/if}
     </div>
-    <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
-      <span class="text-slate-400">Try:</span>
+    <div class="flex flex-wrap items-center gap-1.5 text-xs">
+      <span class="text-slate-500">Try:</span>
       {#each questions as q (q.label)}
         <button class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-slate-600 hover:border-blue-300 hover:text-blue-700" onclick={() => ask(q)}>
           {q.label}

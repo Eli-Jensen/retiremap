@@ -1,15 +1,31 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type maplibregl from 'maplibre-gl';
-  import 'maplibre-gl/dist/maplibre-gl.css';
   import { app, cities } from '../state.svelte.ts';
-  import { createMap, addCityLayer, buildGeoJSON, syncFeatureStates, LAYER_ID } from '../map/mapSetup.ts';
+
+  type MapSetup = typeof import('../map/mapSetup.ts');
 
   let container: HTMLDivElement;
   let map: maplibregl.Map | null = $state.raw(null);
+  let setup: MapSetup | null = null;
   let layerReady = $state(false);
 
+  // MapLibre is most of the bundle and its WebGL setup is the slowest part of
+  // startup, so it loads as its own chunk after the rest of the page paints.
   onMount(() => {
+    let removed = false;
+    import('../map/mapSetup.ts').then((s) => {
+      if (removed) return;
+      setup = s;
+      init(s);
+    });
+    return () => {
+      removed = true;
+      map?.remove();
+    };
+  });
+
+  function init({ createMap, addCityLayer, buildGeoJSON, LAYER_ID }: MapSetup) {
     const m = createMap(container);
     m.on('load', () => {
       m.resize(); // in case the container was mid-layout at construction
@@ -28,8 +44,7 @@
     m.on('mousemove', LAYER_ID, (e) => (m.getCanvas().style.cursor = hit(e) ? 'pointer' : ''));
     m.on('mouseleave', LAYER_ID, () => (m.getCanvas().style.cursor = ''));
     map = m;
-    return () => m.remove();
-  });
+  }
 
   // Recolor via feature-state whenever inputs change; rAF-coalesced so slider
   // drags push at most one sync per frame.
@@ -37,8 +52,9 @@
   $effect(() => {
     const results = app.results;
     const selected = app.selectedCityId;
-    if (!map || !layerReady) return;
+    if (!map || !setup || !layerReady) return;
     const m = map;
+    const { syncFeatureStates } = setup;
     cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(() => syncFeatureStates(m, cities, results, selected));
     return () => cancelAnimationFrame(rafId);

@@ -1,6 +1,7 @@
 // MapLibre setup kept out of Svelte: static layers whose colors are driven
 // entirely through feature-state, so input changes never touch the style.
 import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import type { FeatureCollection } from 'geojson';
 import type { CityRecord } from '../types.ts';
 import { CLASS_COLORS } from '../math/color.ts';

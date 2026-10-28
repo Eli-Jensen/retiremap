@@ -18,17 +18,18 @@
   <div
     class="pointer-events-auto max-h-[70vh] w-full space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur sm:max-h-[calc(100vh-2rem)] sm:w-80"
     role="dialog"
+    tabindex="-1"
     data-city-card
     aria-label="{city.name} details"
   >
     <div class="flex items-start justify-between gap-2">
       <div>
         <h2 class="font-bold leading-tight text-slate-900">{flagEmoji(city.iso2)} {city.name}</h2>
-        <p class="text-[11px] text-slate-500">
+        <p class="text-xs text-slate-500">
           {city.admin ? `${city.admin}, ` : ''}{city.country} · {regionLabel}{#if city.pop} · pop. {fmtCompact(city.pop)}{/if}
         </p>
       </div>
-      <button class="-m-1 p-1 text-slate-400 hover:text-slate-700" aria-label="Close" onclick={() => (app.selectedCityId = null)}>✕</button>
+      <button class="-m-1 p-1 text-slate-500 hover:text-slate-700" aria-label="Close" onclick={() => (app.selectedCityId = null)}>✕</button>
     </div>
 
     {#if !inUS(city)}
@@ -39,7 +40,7 @@
           Nonstop to <b class="text-slate-900">{f.yearRound.join(', ') || 'the US'}</b>{#if f.seasonal.length}<span class="text-slate-500">
               {f.yearRound.length ? ' + seasonal' : ' (seasonal only):'} {f.seasonal.join(', ')}</span
             >{/if}
-          <span class="text-slate-400">from {f.via[0]?.airport} ({f.via[0]?.km} km)</span>
+          <span class="text-slate-500">from {f.via[0]?.airport} ({f.via[0]?.km} km)</span>
         {:else}
           <span class="text-slate-500">No nonstop flights to major US airports within {meta.flights?.radiusKm ?? 80} km.</span>
         {/if}
@@ -57,7 +58,7 @@
 
     <!-- At your retirement age -->
     <div class="space-y-1 rounded-lg bg-slate-50 p-2.5">
-      <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Retire {when} · {fmtUsdCompact(at.portfolio)} saved</div>
+      <div class="text-xs font-medium uppercase tracking-wide text-slate-500">Retire {when} · {fmtUsdCompact(at.portfolio)} saved</div>
       <div class="flex items-center gap-1.5 font-semibold text-slate-900">
         <span class="inline-block h-3 w-3 rounded-full" style="background: {CLASS_COLORS[r.tierAt]}"></span>
         {TIERS[r.tierAt].label}
@@ -77,9 +78,9 @@
 
     <!-- The ladder -->
     <div class="space-y-1.5 rounded-lg bg-slate-50 p-2.5">
-      <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">When could you retire here…</div>
+      <div class="text-xs font-medium uppercase tracking-wide text-slate-500">When could you retire here…</div>
       <table class="w-full text-xs tabular-nums">
-        <thead class="text-[10px] uppercase tracking-wide text-slate-400">
+        <thead class="text-xs uppercase tracking-wide text-slate-500">
           <tr>
             <th class="pb-0.5 text-left font-medium"></th>
             <th class="pb-0.5 text-right font-medium">$/mo</th>
@@ -102,7 +103,7 @@
               <td class="py-0.5 pl-2 text-right text-slate-500">{fmtUsdCompact(r.nestEggs[t])}</td>
               <td class="w-14 py-0.5 pr-1 text-right">
                 {#if y === null}
-                  <span class="text-slate-400">—</span>
+                  <span class="text-slate-500">—</span>
                 {:else if onPlan}
                   <span class="font-medium text-emerald-700">✓ {y === 0 ? 'now' : app.age + y}</span>
                 {:else}
@@ -113,13 +114,13 @@
           {/each}
         </tbody>
       </table>
-      <p class="text-[11px] text-slate-400">
+      <p class="text-xs text-slate-500">
         You'll have {fmtUsdCompact(at.portfolio)} at {app.retireAge}. "$/mo" is spending before health insurance; "need" adds
         insurance, taxes and the bridge to Social Security. ✓ = within reach by {app.retireAge}.
       </p>
       {#if b.target && b.targetAge !== null}
         <dl class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 border-t border-slate-200 pt-1.5 text-xs tabular-nums text-slate-600">
-          <dt class="col-span-2 text-[11px] font-medium text-slate-500">{TIERS[app.targetTier].label} at {b.targetAge}: you'd need</dt>
+          <dt class="col-span-2 text-xs font-medium text-slate-500">{TIERS[app.targetTier].label} at {b.targetAge}: you'd need</dt>
           <dt>Savings</dt>
           <dd class="text-right font-medium text-slate-900">{fmtUsdCompact(b.target.total)}</dd>
           {#if b.target.perpetual > 0}
@@ -147,17 +148,17 @@
 
     <div class="space-y-1">
       <div class="flex items-baseline justify-between">
-        <span class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Quality of life</span>
+        <span class="text-xs font-medium uppercase tracking-wide text-slate-500">Quality of life</span>
         <b class="text-sm tabular-nums text-slate-900">{city.qol ? Math.round(city.qol.index) : '—'}</b>
       </div>
       <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs tabular-nums text-slate-600">
         {#each METRICS.filter((m) => m.group !== 'Climate' && m.id !== 'qol' && m.id !== 'pop') as m (m.id)}
           {@const v = m.get(city)}
-          <span>{m.label}{#if !m.higherIsBetter}<span class="text-slate-400"> ↓</span>{/if}</span>
+          <span>{m.label}{#if !m.higherIsBetter}<span class="text-slate-500"> ↓</span>{/if}</span>
           <span class="text-right">{v === null ? '—' : Math.round(v)}</span>
         {/each}
       </div>
-      <p class="text-[11px] text-slate-400">Numbeo indexes; prices with New York = 100; ↓ = lower is better.</p>
+      <p class="text-xs text-slate-500">Numbeo indexes; prices with New York = 100; ↓ = lower is better.</p>
     </div>
 
     {#if city.climate}
@@ -165,8 +166,8 @@
       {@const t = (c: number) => Math.round(app.units === 'us' ? (c * 9) / 5 + 32 : c)}
       <div class="space-y-1">
         <div class="flex items-baseline justify-between">
-          <span class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Climate</span>
-          <button class="text-[10px] text-slate-400 hover:text-slate-700" onclick={() => (app.units = app.units === 'us' ? 'metric' : 'us')}>
+          <span class="text-xs font-medium uppercase tracking-wide text-slate-500">Climate</span>
+          <button class="text-xs text-slate-500 hover:text-slate-700" onclick={() => (app.units = app.units === 'us' ? 'metric' : 'us')}>
             {app.units === 'us' ? '°F → °C' : '°C → °F'}
           </button>
         </div>
@@ -176,21 +177,21 @@
             <span>{m.label}</span><span class="text-right">{v === null ? '—' : fmtMetric(m, v, app.units)}</span>
           {/each}
         </div>
-        <table class="mt-1 w-full table-fixed text-center text-[10px] tabular-nums text-slate-500">
-          <thead><tr>{#each 'JFMAMJJASOND' as mo, i (i)}<th class="font-medium text-slate-400">{mo}</th>{/each}</tr></thead>
+        <table class="mt-1 w-full table-fixed text-center text-xs tabular-nums text-slate-500">
+          <thead><tr>{#each 'JFMAMJJASOND' as mo, i (i)}<th class="font-medium text-slate-500">{mo}</th>{/each}</tr></thead>
           <tbody>
             <tr class="text-red-700">{#each cl.months as m, i (i)}<td>{t(m.hi)}</td>{/each}</tr>
             <tr class="text-blue-700">{#each cl.months as m, i (i)}<td>{t(m.lo)}</td>{/each}</tr>
           </tbody>
         </table>
-        <p class="text-[11px] text-slate-400">
+        <p class="text-xs text-slate-500">
           Monthly average high / low (°{app.units === 'us' ? 'F' : 'C'}),
           {cl.years === 1 ? `${meta.climate?.lastYear} only` : `${cl.years}-year average`} · Open-Meteo / ERA5.
         </p>
       </div>
     {/if}
 
-    <div class="flex gap-2 text-[11px]">
+    <div class="flex gap-2 text-xs">
       <button class="flex-1 rounded-md border border-slate-200 py-1 text-slate-600 hover:bg-slate-50" onclick={() => app.setPlace(countryId, 'only')}>
         Only {city.country}
       </button>

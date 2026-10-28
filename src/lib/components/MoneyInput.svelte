@@ -34,7 +34,7 @@
 <div class="space-y-1">
   <label class="block truncate text-xs font-medium text-slate-600" for={id} title={label}>{label}</label>
   <div class="relative">
-    <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+    <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">$</span>
     <input
       {id}
       type="text"
@@ -57,12 +57,12 @@
       onkeydown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
     />
     {#if suffix}
-      <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">{suffix}</span>
+      <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">{suffix}</span>
     {/if}
   </div>
   {#if value !== null}
-    <button class="text-[11px] text-blue-600 hover:underline" onclick={() => onchange(null)}>reset to typical</button>
+    <button class="text-xs text-blue-600 hover:underline" onclick={() => onchange(null)}>reset to typical</button>
   {:else if hint}
-    <p class="text-[11px] leading-tight text-slate-400">{hint}</p>
+    <p class="text-xs leading-tight text-slate-500">{hint}</p>
   {/if}
 </div>
